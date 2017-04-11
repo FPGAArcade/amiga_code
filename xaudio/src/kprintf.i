@@ -25,7 +25,7 @@ kprintf	MACRO
 		move.l  \2,-(sp)
 	endc
 
-	bsr	_kprintf
+	jsr	_kprintf
 
 	dc.b	\1,$d,$a,0
 	even

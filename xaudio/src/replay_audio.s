@@ -1,4 +1,4 @@
-; REPLAY XAUDIO AHI DRIVER - RELEASE 0.1ß
+; REPLAY XAUDIO AHI DRIVER - RELEASE 0.2ß
 ;------------
 
 ; General register allocation :
@@ -48,10 +48,10 @@
 VERSION		EQU 4
 REVISION	EQU 0
 DATE	MACRO
-		dc.b	"12.02.17"
+		dc.b	"11.04.17"
 	ENDM
 VERS	MACRO
-		dc.b	"replay.audio 0.1ß"
+		dc.b	"replay.audio 0.2ß"
 	ENDM
 
 VSTRING	MACRO
@@ -739,7 +739,7 @@ AHIsub_FreeAudio:
 *
 
 AHIsub_Disable:
-	kprintf	"AHIsub_Disable()"
+;	kprintf	"AHIsub_Disable()"
 	movem.l	a3/a6,-(sp)
 	move.l	ahiac_DriverData(a2),a3
 	move.l	r_ReplayBase(a3),a6
@@ -782,7 +782,7 @@ AHIsub_Disable:
 *
 
 AHIsub_Enable:
-	kprintf	"AHIsub_Enable()"
+;	kprintf	"AHIsub_Enable()"
 	movem.l	a3/a6,-(sp)
 	move.l	ahiac_DriverData(a2),a3
 	move.l	r_ReplayBase(a3),a6
@@ -1013,26 +1013,17 @@ AHIsub_Start:
 	move.l	a6,a5
 	move.l	rb_SysLib(a5),a6
 
-	move.l	ahiac_BuffSamples(a2),d0
-	bne.b	.timing
-	move.l	ahiac_MaxBuffSamples(a2),d0
-	move.l	d0,ahiac_BuffSamples(a2)
-.timing	lsl.l	#2,d0
-	kprintf	"Mixing buffer is %lx bytes",d0
-	move.l	d0,r_MixBufferSize(a3)
-
 	move.l	ahiac_BuffSize(a2),d0
-	bne.b	.timing2
-	move.l	r_MixBufferSize(a3),d0
-	move.l	d0,ahiac_BuffSize(a2)
-.timing2	
-;	lsl.l	#4,d0
-;	move.l	#pcmend-pcm,d0
+	bne.b	.bufsizeok
+
+	move.l	ahiac_MaxBuffSamples(a2),d0
+	lsl.l	#2,d0				; assume 16 bit stereo
+
+.bufsizeok
+	kprintf	"Mixing buffer is %lx bytes",d0
 	move.l	#MEMF_PUBLIC|MEMF_CLEAR,d1
 	CALLLIB	_LVOAllocVec
 
-;	lea	pcm(pc),a0
-;	move.l	a0,d0
 
 	kprintf	"Mixing buffer at %lx",d0
 
@@ -1040,10 +1031,8 @@ AHIsub_Start:
 	beq	.error_nomem
 
 
-	add.l	r_MixBufferSize(a3),d0
+	clr.l	r_MixBufferSize(a3)
 	move.l	d0,r_MixReadPtr(a3)
-
-	
 
 	move.l	ahiac_MaxBuffSamples(a2),d0
 ;	move.l	#128*1024,d0
@@ -1743,22 +1732,22 @@ AHIsub_HardwareControl:
 *
 
 AHIsub_SetVol:
-	kprintf		"AHIsub_SetVol() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
+;	kprintf		"AHIsub_SetVol() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
 	bra.w	AHIsub_Unknown
 AHIsub_SetFreq:
-	kprintf		"AHIsub_SetFreq() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
+;	kprintf		"AHIsub_SetFreq() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
 	bra.w	AHIsub_Unknown
 AHIsub_SetSound:
-	kprintf		"AHIsub_SetSound() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
+;	kprintf		"AHIsub_SetSound() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
 	bra.w	AHIsub_Unknown
 AHIsub_SetEffect:
-	kprintf		"AHIsub_SetEffect() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
+;	kprintf		"AHIsub_SetEffect() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
 	bra.w	AHIsub_Unknown
 AHIsub_LoadSound:
-	kprintf		"AHIsub_LoadSound() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
+;	kprintf		"AHIsub_LoadSound() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
 	bra.b	AHIsub_Unknown
 AHIsub_UnloadSound:
-	kprintf		"AHIsub_UnloadSound() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
+;	kprintf		"AHIsub_UnloadSound() [%lx, %lx, %lx] / [%lx, %lx, %lx]",d0,d1,d2,a0,a1,a2
 	bra.w	AHIsub_Unknown
 AHIsub_Unknown:
 	moveq.l	#AHIS_UNKNOWN,d0
@@ -2039,9 +2028,13 @@ PlayerFunc:
 ;	a3	READ PTR
 
 		move.l	a6,a2
+		move.l	a4,a5
 		move.l	ahiac_DriverData(a2),a4
 		move.l	a1,r_OutputPutPtr(a4)
 		move.l	a3,r_MixReadPtr(a4)
+		move.l	r_MixBuffer(a4),a3
+		sub.l	a3,a5
+		move.l	a5,r_MixBufferSize(a4)
 
 		movem.l	(sp)+,d0-a6
 
