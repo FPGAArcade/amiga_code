@@ -4,8 +4,8 @@ rm -rf unpack
 mkdir unpack
 pushd unpack
 
-xdftool -f ../amiga_tools.hdf unpack .
-cp -r amiga_tools/* ..
+xdftool -f ../drivers.hdf unpack .
+cp -r drivers/* ..
 
 popd
 rm -rf unpack

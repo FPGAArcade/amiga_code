@@ -1,2 +1,2 @@
 #!/bin/bash
-xdftool -f amiga_tools.hdf create size=5M + format amiga_tools + write addmem + write rtg + write xaudio
+xdftool -f drivers.hdf create size=5M + format drivers + write addmem + write rtg + write xaudio
