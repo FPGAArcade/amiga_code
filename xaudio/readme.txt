@@ -1,3 +1,7 @@
+replay.audio 0.3ß - 060db support
+
+Added support for new AddReplayMem and 060db
+
 replay.audio 0.2ß - somewhat more tested
 
 This driver is purely a simple wrapper over the Replay's xaudio 16bit stereo audio-out sink.

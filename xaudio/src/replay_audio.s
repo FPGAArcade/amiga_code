@@ -1,4 +1,4 @@
-; REPLAY XAUDIO AHI DRIVER - RELEASE 0.2ß
+; REPLAY XAUDIO AHI DRIVER - RELEASE 0.3ß
 ;------------
 
 ; General register allocation :
@@ -47,10 +47,10 @@
 VERSION		EQU 4
 REVISION	EQU 0
 DATE	MACRO
-		dc.b	"19.04.17"
+		dc.b	"30.01.2018"
 	ENDM
 VERS	MACRO
-		dc.b	"replay.audio 0.2ß"
+		dc.b	"replay.audio 0.3ß"
 	ENDM
 
 VSTRING	MACRO
@@ -73,7 +73,7 @@ VERSTAG	MACRO
 
 	ENDC
 
-	incdir	sys:xaudio/src/
+	incdir	drivers:xaudio/src/
 	include kprintf.i
 
 *************************************************************************
@@ -111,6 +111,7 @@ XAUD_FORMATH	= $0014
 XAUD_FORMATL	= $0016
 XAUD_CTRLH	= $001c
 XAUD_CTRLL	= $001e
+MEMF_REPLAY	= (1<<14)
 
 *************************************************************************
 
@@ -818,6 +819,8 @@ LibName:	dc.b	"replay.audio",0
 timerName:	TIMERNAME
 IDString:	VSTRING
 		dc.b	0
+
+	VERSTAG
 
 	cnop	0,2
 
@@ -1643,11 +1646,20 @@ AHIsub_Start:
 	and.l	#~15,d0
 	move.l	d0,r_OutputBufferSize(a3)
 	add.l	#15,d0					; need 16byte alignment ptr
-	move.l	#MEMF_PUBLIC|MEMF_CLEAR,d1
+	move.l	#MEMF_PUBLIC|MEMF_CLEAR|MEMF_REPLAY,d1
+	CALLLIB	_LVOAllocVec
+	move.l	d0,r_OutputBuffer(a3)
+	bne.b	.memory_ok
+
+	kprintf	"WARNING : unable to allocate REPLAY memory"
+	move.l	r_OutputBufferSize(a3),d0
+	add.l	#15,d0					; need 16byte alignment ptr
+	move.l	#MEMF_PUBLIC|MEMF_CLEAR|MEMF_24BITDMA,d1
 	CALLLIB	_LVOAllocVec
 	move.l	d0,r_OutputBuffer(a3)
 	beq	.error_nomem
 
+.memory_ok:
 	add.l	#15,d0
 	and.l	#~15,d0
 	move.l	d0,r_OutputBufferAligned(a3)
