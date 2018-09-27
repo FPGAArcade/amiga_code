@@ -1,34 +1,54 @@
+; vasmm68k_mot -Fhunkexe -kick1hunks addmem.asm -L addmem.list -nosym -m68000 -o AddReplayMem -I ~/Documents/amiga-root/SYS/Code/NDK_3.9/Include/include_i
+
+	include	exec/nodes.i
+	include	exec/resident.i
 
 _LVOAllocMem    equ	-198
+_LVOFreeMem     equ	-210
 _LVOTypeOfMem   equ	-534
 _LVOAddMemList  equ	-618
 _LVOOpenLibrary equ	-552
 _LVOCloseLibrary equ	-414
 _LVOPutStr      equ	-948
 MEMF_PUBLIC     equ    (1<<0)
+MEMF_CHIP       equ    (1<<1)
 MEMF_FAST       equ    (1<<2)
 MEMF_REPLAY     equ    (1<<14)
 
-; vasmm68k_mot -Fhunkexe -kick1hunks addmem.asm -L addmem.list -nosym -m68000 -o AddReplayMem 
+	jmp	S
+	moveq.l	#-1,d0
+	rts
 
-	jmp	ProgStart
+VERSION	= 1
+REVISION= 5
 
-	section	data,data_p
+	dc.b	0,'$VER: AddReplayMem 1.5 (20.9.2018) Replay XRAM',0
+VERSTRING	dc.b	'AddReplayMem 1.5 (20.9.2018) Replay XRAM',13,10,0
+	even
+	
+romtag:	dc.w	RTC_MATCHWORD
+	dc.l	romtag
+	dc.l	end
+	dc.b	RTF_COLDSTART
+	dc.b	VERSION
+	dc.b	NT_UNKNOWN
+	dc.b	0
+	dc.l	tagname
+	dc.l	VERSTRING
+	dc.l	S
 
-	AUTO	wo C:AddReplayMem\
+tagname:	dc.b	'AddReplayMem',0
+	even
+	
+S:
+	movem.l	d2-d6/a2-a6,-(sp)
 
+; 1.5 - Make ROMable
 ; 1.4 - Add console logging; Fix building with vasm.
 ; 1.3 - Label the memory region as REPLAY memory (unused bit 14)
 ; 1.2 - Probe the memory region to see if it's already been added (using exec.library/TypeOfMem())
 ; 1.1 - Detect 24 bit (000/010/EC020) memory space (by detecting mirroring of CHIP above the 16M barrier)
 ; 1.0 - Probe memory to make sure it's actually present
-
-	dc.b	0,'$VER: AddReplayMem 1.4 (18.07.2018)',0
-
-****************************************************************************
-	section	code,code_p
-
-ProgStart
 
 	; Check if already registered
 	movea.l	$4.w,a6
@@ -37,10 +57,16 @@ ProgStart
 	tst.l	d0
 	bne.w	.quit_present
 	
-
 	; determine 24/32 bit address bus
 	; check mirroring of CHIP above 16M...
-	lea	chip,a0
+
+	moveq.l	#16,d0
+	moveq.l	#MEMF_CHIP,d1
+	jsr	_LVOAllocMem(a6)
+	tst.l	d0
+	beq.w	.quit_alloc
+
+	move.l	d0,a0
 
 	move.l	#$DEADCE11,d0
 	move.l	#$ABADC0DE,d1
@@ -76,6 +102,10 @@ ProgStart
 	eor.w	d2,d3
 
 	dbf	d5,.again
+
+	move.l	a0,a1
+	moveq.l	#16,d0
+	jsr	_LVOFreeMem(a6)	
 
 	neg.b	d4
 	cmp.b	#32,d4
@@ -145,7 +175,9 @@ ProgStart
 	movea.l	$4.w,a6
 	jsr	_LVOCloseLibrary(a6)
 
-.nodos	moveq.l	#0,d0
+.nodos
+	movem.l	(sp)+,d2-d6/a2-a6
+	moveq.l	#0,d0
 	rts
 
 name		dc.b 'replay xram memory',0
@@ -157,8 +189,5 @@ probing_failed	dc.b 'memory probing failed',10,0
 alloc_failed	dc.b 'memory allocation failed',10,0
 memory_added	dc.b 'memory region added',10,0
 
-	section	chip,bss_c
-chip		ds.b	16
-
-    end
+end
 
