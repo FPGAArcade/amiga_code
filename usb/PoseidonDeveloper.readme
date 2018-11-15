@@ -1,0 +1,40 @@
+
+                 __   __                                    V/\V.       /\
+                |" | |" |                                   mMMnw,      || []
+                |  | |  |                                  (o  o)W   () || ||
+                |__|_|_"|                                  | /  |Mw  || ||//
+                ("  "  \|                                  \ -'_/mw   \\||/
+                 \______)                                   ~%%/WM"    \||
+ _____    ___     ______  _____  __  _____     ___  __  __/~~__ ~~\    _||
+|"("  \()/\" \ ()/"_    )|"(___) ) )|"("  \ ()/\" \(__)/" ) /" ) " \  /_)O
+|  )   )/" \  \ (_/"\__/ |  )_  ( ( |  )_  ) /" \  \  /  /|/  / ·\  \/ ,|O
+| (___/(  (_\__) _\  \_  | (__)  ) )| (__) |(  (_\__)/  /"/  /   |\   '_|O
+|  |  _ \  /  / /" \_/ ) | ")__ ( ( |  )"  ) \  /  //  /|/  / . .|/\__/ ||
+|__| (_) \/__/ (______/  |_(___) )_)|_(___/ . \/__/(__/ (__/ .:.:|      ||
+                 _____
+                |" __ \  Poseidon -- The divine USB stack for Amiga computers
+                | (__) ) Version: 1.31 (03.10.02)
+                |  __ (  Designed and written by
+                |"(__) )   Chris Hodges <hodges@in.tum.de>
+                |_____/  Copyright ©2002 Chris Hodges. All rights reserved.
+
+
+These are the current developer docs for Poseidon.  Unfortunately,  they're
+not  quite  up2date  (there  are so many things to do, but I hope I will be
+able to upload a complete and uptodate dev archive early next year). PLEASE
+DO NOT REDISTRIBUTE.
+
+Includes and Autodocs are in the Developer directory.  The  bootmouse.class
+source  code  has  been  included  for educational purpose and as a kind of
+template. This class driver also contains a MUI GUI. Please refer  to  this
+code  on  how  to  handle  the  preferences.
+
+The PenCamTool shows how to estabilsh ApplicationBindings. Have a  look  at
+this  class,  if  you're  planning  to  support  vendor  specific stuff for
+scanners, webcams etc.. All stuff has been developed using SAS/C.  Most  of
+the code also compiles under GCC for MorphOS, but you might need some small
+modifications to compile the code under your system.
+
+If something is missing or not clear to you, feel  free  to  ask.  You  can
+contact me at hodges@in.tum.de or by phone via +49-89/80001543.
+
