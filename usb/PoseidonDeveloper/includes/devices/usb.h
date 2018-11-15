@@ -357,6 +357,10 @@ struct  UsbHubDesc
 #define UHCF_INDIVID_OVP      0x0800 /* Individual port over-current status */
 #define UHCF_NO_OVP           0x1000 /* No over-current protection */
 
+#define UHCF_USB20            0x0008
+#define UHCF_ISO              0x0004
+#define UHCF_RT_ISO           0x0002
+#define UHCF_QUICKIO          0x0001
 
 /* Standard classes */
 #define AUDIO_CLASSCODE       0x01

@@ -74,6 +74,28 @@ struct IOUsbHWReqObsolete
     UWORD iouh_ExtError;       /* Extended error code */
 };
 
+struct IOUsbHWBufferReq
+{
+    char * ubr_Buffer;  // 00
+    ULONG ubr_Length;   // 04
+    UWORD ubr_Frame;    // 08
+    UWORD ubr_Flags;    // 0a
+}; // 0c
+
+#define UBFF_CONTBUFFER (1<<0)  // CONTBUFFER = bit 0
+
+struct IOUsbHWRTIso
+{
+    ULONG   pad0;                           // 00
+    struct Hook *   urti_InReqHook;         // 04
+    struct Hook *   urti_OutReqHook;        // 08
+    struct Hook *   urti_InDoneHook;        // 0c
+    struct Hook *   urti_OutDoneHook;       // 10
+    ULONG   pad1;                           // 14
+    void * urti_DriverPrivate1;             // 18
+    // .. unknown
+};
+
 /* non-standard commands */
 
 #define UHCMD_QUERYDEVICE (CMD_NONSTD+0)
@@ -85,6 +107,11 @@ struct IOUsbHWReqObsolete
 #define UHCMD_ISOXFER     (CMD_NONSTD+4)
 #define UHCMD_INTXFER     (CMD_NONSTD+5)
 #define UHCMD_BULKXFER    (CMD_NONSTD+6)
+
+#define UHCMD_ADDISOHANDLER (CMD_NONSTD+7)
+#define UHCMD_REMISOHANDLER (CMD_NONSTD+8)
+#define UHCMD_STARTRTISO    (CMD_NONSTD+9)
+#define UHCMD_STOPRTISO     (CMD_NONSTD+10)
 
 /* Error codes for io_Error field */
 
@@ -140,6 +167,7 @@ struct IOUsbHWReqObsolete
 #define UHA_Description    (UHA_Dummy + 0x14)
 #define UHA_Copyright      (UHA_Dummy + 0x15)
 #define UHA_DriverVersion  (UHA_Dummy + 0x20)
+#define UHA_Capabilities   (UHA_Dummy + 0x32) // $80004732
 
 /* Definitions for UHA_State/iouh_State */
 
