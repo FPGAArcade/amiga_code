@@ -1,13 +1,17 @@
 [volumes]
 SYS=.
+C=C
+DEVS=Devs
+T=T
+SDK=PoseidonDeveloper
 
 [assigns]
 sc=SYS:SAS-C
-include=sc:include
+include=sc:include,SDK:includes
 lib=sc:lib
 
 [path]
-path=sc:c
+path=SYS:C,sc:c
 
 [icon.library]
 mode=fake
