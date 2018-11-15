@@ -8,6 +8,22 @@
 #define USE_INLINE_STDARG
 #define __NOLIBBASE__
 #define NewList NEWLIST
+#else
+static void NewList( struct MinList *list )
+{
+
+//;Prepare a list header for use
+//NEWLIST     MACRO   ; list
+//        MOVE.L  \1,LH_TAILPRED(\1)
+//        ADDQ.L  #4,\1   ;Get address of LH_TAIL
+//        CLR.L   (\1)    ;Clear LH_TAIL
+//        MOVE.L  \1,-(\1)    ;Address of LH_TAIL to LH_HEAD
+//        ENDM
+
+    list->mlh_Tail = 0;
+    list->mlh_TailPred = list;
+    list->mlh_Head = (struct MinList *)&list->mlh_Tail;
+}
 #endif
 
 #include <proto/exec.h>
