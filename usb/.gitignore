@@ -1,3 +1,6 @@
 Deneb-Device/*.o68K*
 Deneb-Device/*.device
+Deneb-Device/*.o
+Deneb-Device/*.lnk
+*/DenebClockport
 Devs
