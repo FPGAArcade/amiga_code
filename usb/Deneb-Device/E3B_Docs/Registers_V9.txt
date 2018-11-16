@@ -1,0 +1,80 @@
+DENEB Zorro III register description
+====================================
+
+DENEB base address is always set on A[31:24], yielding into a 16MB card space.
+
+DENEB is divided into several logical sections; they are selected by address bits A[23:20] only.
+Not all sections are in use at the moment.
+
+A[23:20]   section
+
+0x0        register space
+0x1        USB host controller
+0x2        clockport
+0x3        debug SRAM
+
+Section 0x0: register space
+===========================
+
+This section contains all registers needed for operation of DENEB USB part.
+Registers are selected by address bits A[19:16].
+
+0x0: DMAM register
+read only
+
+D[31:18]: DMA length
+D[17]   : DMA IRQ
+D[16]   : DMA done bit; 1 = done
+D[15:0] : DMA target address inside ISP1760
+
+0x1: DMAC register
+read / write 
+
+D[31:2] : DMA target address on Zorro 
+D[1]    : DMA direction (0 = write, 1 = read)
+D[0]    : DMA start, autoreset by DMA_DONE to zero
+
+0x2: DMC register
+read / write
+
+D[31:24] : DMA gap
+D[23:16] : DMA block size
+D[15:1]  : reserved
+D[0]     : Buster 11 bit (0 = Buster 9 fix, 1 = Buster 11)
+
+DMA gap: number of E7M cycles between unregistering and registering.
+         Real number of cycles = D[31:24] * 4 + 3
+
+DMA block size: number of bus accesses in a block.
+                Real number of accesses = D[23:16] + 1
+
+Buster bit: set to zero for Buster 9 fix (fake interrupt, /FCS handling);
+            set to one for Buster 11 
+
+0xc: DMI register
+read / write
+
+D[31:2] : reserved
+D[1]    : IRQ status from ISP1760
+D[0]    : IRQ status from DMA state machine
+
+0xd: clockport control register
+read / write
+
+D[31]   : clockport status bit from hardware, read only
+
+0xe: USB control register
+read / write
+
+0xf: test register, do not use
+read / write
+
+Section 0x1: USB host controller
+================================
+
+Here are all registers from ISP1760 USB host controller accessible.
+There's one important register: the offset 0x33c register is shadowed inside the FPGA.
+
+The SHADOW registers is only activated on bank 3 selection inside the ISP1760.
+It is used to set the DMA length and DMA offset inside the ISP1760.
+

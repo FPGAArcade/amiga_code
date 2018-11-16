@@ -63,9 +63,15 @@
 #ifndef ZORRO_II
 #define WRITEMACH(x,y) unit->hu_HWBase[x] = y
 #define READMACH(x)    unit->hu_HWBase[x]
+#define MC030FREEZE    //if(unit->hu_FastZorro2) unit->hu_OldCacheBits = CacheControl(CACRF_FreezeD, CACRF_FreezeD)
+#define MC030UNFREEZE  //if(unit->hu_FastZorro2) CacheControl(unit->hu_OldCacheBits, CACRF_FreezeD)
+#define MC030FLUSH     //if(unit->hu_FastZorro2) CacheClearE(0, 0xffffffff, CACRF_ClearD)
 #else
 #define WRITEMACH(x,y) ((UWORD *) unit->hu_HWBase)[x] = y
 #define READMACH(x)    ((UWORD *) unit->hu_HWBase)[x]
+#define MC030FREEZE
+#define MC030UNFREEZE
+#define MC030FLUSH
 #endif
 
 //#ifdef __SASC
@@ -211,18 +217,19 @@
 
 struct PTDNode
 {
-    struct MinNode     ptd_Node;
-    UWORD              ptd_Num;
-    UWORD              ptd_Type;
-    struct IOUsbHWReq *ptd_IOReq;
-    UWORD              ptd_BufStart;
-    UWORD              ptd_BufLen;
-    ULONG              ptd_AllocMap;
-    ULONG              ptd_NakTimeoutFrame;
-    ULONG              ptd_DW[8];
-    UWORD              ptd_IntSOFMap;
-    BOOL               ptd_LastIn;
-    struct RTIsoNode  *ptd_RTIsoNode;
+    struct MinNode     ptd_Node;             // 00
+    UWORD              ptd_Num;              // 08
+    UWORD              ptd_Type;             // 0a
+    struct IOUsbHWReq *ptd_IOReq;            // 0c
+    UWORD              ptd_BufStart;         // 10
+    UWORD              ptd_BufLen;           // 12
+    ULONG              ptd_AllocMap;         // 14
+    ULONG              ptd_NakTimeoutFrame;  // 18
+    UWORD              ptd_IntSOFMap;        // 1c
+    BOOL               ptd_LastIn;           // 1e
+    ULONG              ptd_DW[6];            // 20
+    struct RTIsoNode  *ptd_RTIsoNode;        // 38
+    ULONG              ptd_Dummy;            // 3c
 };
 
 struct RTIsoNode
@@ -230,10 +237,10 @@ struct RTIsoNode
     struct MinNode     rtn_Node;
     struct IOUsbHWRTIso *rtn_RTIso;
     ULONG              rtn_NextPTD;
-    ULONG              rtn_DonePTD;
     struct PTDNode    *rtn_PTDs[2];
     struct IOUsbHWBufferReq rtn_BufferReq;
     struct IOUsbHWReq  rtn_IOReq;
+    UWORD              rtn_Dummy;
 };
 
 

@@ -27,8 +27,8 @@ CFLAGS = $(DEB) def dprintf=kprintf ign=304 opt opttime strmer nostkchk data=fo 
 
 ##############################################################################
 
-all: denebdmausb.device denebpiousb.device denebz2usb.device install
-#all: denebpiousb.device install
+all: DenebClockport denebdmausb.device denebpiousb.device denebz2usb.device install
+#all: denebz2usb.device install
 
 clean:
         @delete >nil: $(OBJS_DMA) $(OBJS_PIO) $(OBJS_Z2) denebdmausb.device denebpiousb.device denebz2usb.device DenebClockport
@@ -88,12 +88,13 @@ denebz2usb.device:      $(OBJS_Z2)
 DenebClockport: DenebClockport.c
                 $(CC) DenebClockport.c LINK
 
-install: denebdmausb.device denebpiousb.device denebz2usb.device
-#install: denebpiousb.device
+install: DenebClockport denebdmausb.device denebpiousb.device denebz2usb.device
+#install: denebz2usb.device
         copy denebpiousb.device DEVS:USBHardware/
         copy denebdmausb.device DEVS:USBHardware/
         copy denebz2usb.device DEVS:USBHardware/
+        copy DenebClockport C:
 
 BUMP:
-        bumprev2 VERSION=$(VERSION) FILE=$(SRC)denebusb.device_VERSION TAG=denebusb ADD="© 2007-2010 by Chris Hodges"
+        bumprev2 VERSION=$(VERSION) FILE=$(SRC)denebusb.device_VERSION TAG=denebusb ADD="© 2007-2014 by Chris Hodges"
 
