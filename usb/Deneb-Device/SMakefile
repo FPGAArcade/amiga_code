@@ -42,7 +42,7 @@ SRC             =
 GLOBAL          = declgate.h myregargs.h isp1760.h deneb.h denebusb.h
 
 debug.o$(TARGET):               $(SRC)debug.c                   $(GLOBAL)
-                                $(CC)  $< $(CFLAGS) OBJNAME=$@
+                                $(CC)  $< $(CFLAGS) OBJNAME=$@ disasm=$@.txt
 
 dev_dma.o$(TARGET):             $(SRC)dev.c                     $(GLOBAL) denebusb.device_VERSION.h debug.h
                                 $(CC)  $< $(CFLAGS) OBJNAME=$@
@@ -51,10 +51,10 @@ uhwcmd_dma.o$(TARGET):          $(SRC)uhwcmd.c uhwcmd.h $(GLOBAL) debug.h
                                 $(CC)  $< $(CFLAGS) OBJNAME=$@
 
 dev_pio.o$(TARGET):             $(SRC)dev.c                     $(GLOBAL) denebusb.device_VERSION.h debug.h
-                                $(CC) def NODMA $< $(CFLAGS) OBJNAME=$@
+                                $(CC) def NODMA $< $(CFLAGS) OBJNAME=$@ disasm=$@.txt
 
 uhwcmd_pio.o$(TARGET):          $(SRC)uhwcmd.c uhwcmd.h $(GLOBAL) debug.h
-                                $(CC) def NODMA $< $(CFLAGS) OBJNAME=$@
+                                $(CC) def NODMA $< $(CFLAGS) OBJNAME=$@ disasm=$@.txt
 
 dev_z2.o$(TARGET):               $(SRC)dev.c                     $(GLOBAL) denebusb.device_VERSION.h debug.h
                                 $(CC) def NODMA def ZORRO_II $< $(CFLAGS) OBJNAME=$@
