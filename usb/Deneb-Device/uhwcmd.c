@@ -302,6 +302,28 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
         unit->hu_Device = base;
         unit->hu_UnitNo = unitnr;
         unit->hu_HWBase = confdev->cd_BoardAddr;
+
+        unit->hu_Buster9 = FindResident("Buster 9 ID Tag") ? TRUE : FALSE;
+
+        if(!unit->hu_Buster9)
+        {
+            struct Library *DOSBase;
+            if(DOSBase = OpenLibrary("dos.library", 37))
+            {
+                UBYTE buffer[4];
+                LONG len;
+                len = GetVar("Buster9", buffer, 4, 0);
+                if(len > 0)
+                {
+                    if(*buffer != '0')
+                    {
+                        unit->hu_Buster9 = TRUE;
+                    }
+                }
+                CloseLibrary(DOSBase);
+            }
+        }
+
         unit->hu_RegBase = unit->hu_HWBase + MACH_USBREGS;
         // [...]
         unit->hu_ReadBasePTDs = &unit->hu_RegBase[MMAP_ISO_PTDS];
