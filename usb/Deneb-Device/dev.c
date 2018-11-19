@@ -22,7 +22,7 @@
 #ifndef NODMA
 #define DEVNAME             "denebdmausb.device"
 #else
-#define DEVNAME             "denebpiousb.device"
+#define DEVNAME             "replayusb.device"
 #endif
 #else
 #define DEVNAME             "denebz2usb.device"

@@ -42,6 +42,7 @@
 #define ISP_ATLPTDDONEMAP   0x054 /* ATL PTD Done Map (rc) */
 #define ISP_ATLPTDSKIPMAP   0x055 /* ATL PTD Skip Map (r/w) */
 #define ISP_ATLPTDLASTPTD   0x056 /* ATL PTD Last PTD (Bit indicating last ATL transfer) (r/w) */
+#define ISP_DCMODE          0x083 /* Peripheral Mode (r/w) */
 #define ISP_HWMODECTRL      0x0c0 /* HW Mode Control (r/w) */
 #define ISP_CHIPID          0x0c1 /* ChipID = 0x00011760 (r) */
 #define ISP_SCRATCH         0x0c2 /* Dummy (r/w) */
@@ -82,7 +83,7 @@
 #define IHWCF_ANALOG_OC     (1UL<<IHWCB_ANALOG_OC)
 #define IHWCF_ALL_ATX_RST   (1UL<<IHWCB_ALL_ATX_RST)
 
-#define IHWCF_DENEB         (IHWCF_DATABUS_WIDTH|IHWCF_INT_POL|IHWCF_ANALOG_OC)
+#define IHWCF_DENEB         (IHWCF_DATABUS_WIDTH|IHWCF_INT_POL|IHWCF_ANALOG_OC|(1UL<<10))
 
 /* ISP_SWRESET defines */
 #define ISWRB_RESET_ALL      0    /* Reset all the HC and CPU regs */

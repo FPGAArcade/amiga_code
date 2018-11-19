@@ -1,5 +1,5 @@
 #
-# denebusb.device SAS/C makefile
+# replayusb.device SAS/C makefile
 #
 
 DEB     =
@@ -27,8 +27,8 @@ CFLAGS = $(DEB) def dprintf=kprintf ign=304 opt opttime strmer nostkchk data=fo 
 
 ##############################################################################
 
-all: DenebClockport denebdmausb.device denebpiousb.device denebz2usb.device install
-#all: denebz2usb.device install
+#all: DenebClockport denebdmausb.device denebpiousb.device denebz2usb.device install
+all: replayusb.device install
 
 clean:
         @delete >nil: $(OBJS_DMA) $(OBJS_PIO) $(OBJS_Z2) denebdmausb.device denebpiousb.device denebz2usb.device DenebClockport
@@ -42,7 +42,7 @@ SRC             =
 GLOBAL          = declgate.h myregargs.h isp1760.h deneb.h denebusb.h
 
 debug.o$(TARGET):               $(SRC)debug.c                   $(GLOBAL)
-                                $(CC)  $< $(CFLAGS) OBJNAME=$@
+                                $(CC)  $< $(CFLAGS) OBJNAME=$@ disasm=$@.txt
 
 dev_dma.o$(TARGET):             $(SRC)dev.c                     $(GLOBAL) denebusb.device_VERSION.h debug.h
                                 $(CC)  $< $(CFLAGS) OBJNAME=$@
@@ -51,10 +51,10 @@ uhwcmd_dma.o$(TARGET):          $(SRC)uhwcmd.c uhwcmd.h $(GLOBAL) debug.h
                                 $(CC)  $< $(CFLAGS) OBJNAME=$@
 
 dev_pio.o$(TARGET):             $(SRC)dev.c                     $(GLOBAL) denebusb.device_VERSION.h debug.h
-                                $(CC) def NODMA $< $(CFLAGS) OBJNAME=$@
+                                $(CC) def NODMA $< $(CFLAGS) OBJNAME=$@ disasm=$@.txt
 
 uhwcmd_pio.o$(TARGET):          $(SRC)uhwcmd.c uhwcmd.h $(GLOBAL) debug.h
-                                $(CC) def NODMA $< $(CFLAGS) OBJNAME=$@
+                                $(CC) def NODMA $< $(CFLAGS) OBJNAME=$@ disasm=$@.txt
 
 dev_z2.o$(TARGET):               $(SRC)dev.c                     $(GLOBAL) denebusb.device_VERSION.h debug.h
                                 $(CC) def NODMA def ZORRO_II $< $(CFLAGS) OBJNAME=$@
@@ -79,7 +79,7 @@ OBJS_Z2         =       dev_z2.o$(TARGET) \
 denebdmausb.device:      $(OBJS_DMA)
                 $(LN) FROM $(OBJS_DMA) $(LFLAGS) $(SLO) LIB $(LLIBS) TO $@
 
-denebpiousb.device:      $(OBJS_PIO)
+replayusb.device:      $(OBJS_PIO)
                 $(LN) FROM $(OBJS_PIO) $(LFLAGS) $(SLO) LIB $(LLIBS) TO $@
 
 denebz2usb.device:      $(OBJS_Z2)
@@ -88,12 +88,8 @@ denebz2usb.device:      $(OBJS_Z2)
 DenebClockport: DenebClockport.c
                 $(CC) DenebClockport.c LINK
 
-install: DenebClockport denebdmausb.device denebpiousb.device denebz2usb.device
-#install: denebz2usb.device
-        copy denebpiousb.device DEVS:USBHardware/
-        copy denebdmausb.device DEVS:USBHardware/
-        copy denebz2usb.device DEVS:USBHardware/
-        copy DenebClockport C:
+install: replayusb.device
+        copy replayusb.device DEVS:USBHardware/
 
 BUMP:
         bumprev2 VERSION=$(VERSION) FILE=$(SRC)denebusb.device_VERSION TAG=denebusb ADD="© 2007-2014 by Chris Hodges"

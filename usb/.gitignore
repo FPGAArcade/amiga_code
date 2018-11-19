@@ -1,4 +1,4 @@
-Deneb-Device/*.o68K*
+Deneb-Device/*.o68*
 Deneb-Device/*.device
 Deneb-Device/*.o
 Deneb-Device/*.lnk

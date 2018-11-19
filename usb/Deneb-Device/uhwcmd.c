@@ -26,6 +26,32 @@ static void NewList( struct MinList *list )
 }
 #endif
 
+static __inline ULONG shuffle_inline(ULONG in)
+{
+    __emit(0xe058); // ror.w #8,d0
+    __emit(0x4840); // swap  d0
+    __emit(0xe058); // ror.w #8,d0
+    return in;
+}
+
+static __asm ULONG shuffle(register __d0 ULONG in)
+{
+    return shuffle_inline(in);
+}
+
+static void CopyMemShuffle( APTR source, APTR dest, unsigned long size )
+{
+    ULONG* src = source;
+    ULONG* dst = dest;
+    ULONG longs = size >> 2;
+    while(longs--)
+    {
+        ULONG v = *src++;
+        v = shuffle_inline(v);  // we assume v got loaded into d0; naughty..
+        *dst++ = v;
+    }
+}
+
 #include <proto/exec.h>
 #include <proto/expansion.h>
 #include <proto/utility.h>
@@ -46,7 +72,7 @@ BOOL uhwOpenTimer(struct DenebUnit *unit, struct DenebDevice *base)
         {
             if(!OpenDevice("timer.device", UNIT_MICROHZ, (struct IORequest *) unit->hu_TimerReq, 0))
             {
-                unit->hu_TimerReq->tr_node.io_Message.mn_Node.ln_Name = "Deneb hardware";
+                unit->hu_TimerReq->tr_node.io_Message.mn_Node.ln_Name = "ReplayUSB hardware";
                 unit->hu_TimerReq->tr_node.io_Command = TR_ADDREQUEST;
                 KPRINTF(1, ("opened timer device\n"));
                 return(TRUE);
@@ -122,6 +148,7 @@ WORD uhwHWInit(struct DenebUnit *unit)
     WRITEREG(ISP_HWMODECTRL, IHWCF_DENEB|IHWCF_ALL_ATX_RST);
     uhwDelayMS(15, unit, base);
     WRITEREG(ISP_HWMODECTRL, IHWCF_DENEB);
+    WRITEREG(ISP_DCMODE, 0);
 
     WRITEREG(ISP_PORT1CTRL, IP1CF_PORT1_POWER|IP1CF_PORT1_INIT2);
 
@@ -283,13 +310,9 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
     }
 
 
-#ifndef ZORRO_II
-    while(confdev = FindConfigDev(confdev, 0xe3b, 0x10)) /* Deneb: E3B, Product No 0x10 */
-#else
-    while(confdev = FindConfigDev(confdev, 0xe3b, 0x12)) /* Deneb: E3B, Product No 0x12 */
-#endif
+    while(confdev = FindConfigDev(confdev, 5060, 0x10)) /* Replay: 5060, USB/ETH 0x10 */
     {
-        KPRINTF(1, ("Found debeb board at %08lx...\n", confdev->cd_BoardAddr));
+        KPRINTF(1, ("Found Replay USB board at %08lx...\n", confdev->cd_BoardAddr));
         if(unitnr == uno++)
             break;
     }
@@ -402,7 +425,7 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
                 unit->hu_IsoBusy = 0x00000000; // none active
 
                 unit->hu_Level6Int.is_Node.ln_Type = NT_INTERRUPT;
-                unit->hu_Level6Int.is_Node.ln_Name = "Deneb Rocks";
+                unit->hu_Level6Int.is_Node.ln_Name = "ReplayUSB Rocks";
 #ifndef ZORRO_II
                 unit->hu_Level6Int.is_Node.ln_Pri  = 127;
 #else
@@ -412,13 +435,13 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
                 unit->hu_Level6Int.is_Code = (void (*)(void)) &uhwLevel6Int;
 
                 unit->hu_SoftInt.is_Node.ln_Type = NT_INTERRUPT;
-                unit->hu_SoftInt.is_Node.ln_Name = "Deneb Control";
+                unit->hu_SoftInt.is_Node.ln_Name = "ReplayUSB Control";
                 unit->hu_SoftInt.is_Node.ln_Pri  = 0;
                 unit->hu_SoftInt.is_Data = unit;
                 unit->hu_SoftInt.is_Code = (void (*)(void)) &uhwSoftInt;
 
                 unit->hu_NakTimeoutInt.is_Node.ln_Type = NT_INTERRUPT;
-                unit->hu_NakTimeoutInt.is_Node.ln_Name = "Deneb NakTimeout";
+                unit->hu_NakTimeoutInt.is_Node.ln_Name = "ReplayUSB NakTimeout";
                 unit->hu_NakTimeoutInt.is_Node.ln_Pri  = -16;
                 unit->hu_NakTimeoutInt.is_Data = unit;
                 unit->hu_NakTimeoutInt.is_Code = (void (*)(void)) &uhwNakTimeoutInt;
@@ -436,9 +459,9 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
                 uhwHWInit(unit);
 
 #ifndef NODMA
-                nt->tc_Node.ln_Name = "Deneb DMA Handler";
+                nt->tc_Node.ln_Name = "ReplayUSB DMA Handler";
 #else
-                nt->tc_Node.ln_Name = "Deneb PIO Transfer";
+                nt->tc_Node.ln_Name = "ReplayUSB PIO Transfer";
 #endif
                 nt->tc_Node.ln_Type = NT_TASK;
                 nt->tc_Node.ln_Pri = 12;
@@ -705,15 +728,15 @@ WORD cmdQueryDevice(struct IOUsbHWReq *ioreq,
     }
     if(tag = FindTagItem(UHA_Manufacturer, taglist))
     {
-        *((STRPTR *) tag->ti_Data) = "Chris Hodges";
+        *((STRPTR *) tag->ti_Data) = "Chris Hodges; adapted to FPGAArcade Replay by Erik Hemming";
         count++;
     }
     if(tag = FindTagItem(UHA_ProductName, taglist))
     {
 #ifndef __MORPHOS__
-        *((STRPTR *) tag->ti_Data) = "Deneb EHCI USB Host Controller";
+        *((STRPTR *) tag->ti_Data) = "ReplayUSB EHCI USB Host Controller";
 #else
-        *((STRPTR *) tag->ti_Data) = "Deneb EHCI USB Host Controller (MorphOS)";
+        *((STRPTR *) tag->ti_Data) = "ReplayUSB EHCI USB Host Controller (MorphOS)";
 #endif
         count++;
     }
@@ -721,7 +744,7 @@ WORD cmdQueryDevice(struct IOUsbHWReq *ioreq,
     {
 #ifndef ZORRO_II
 #ifdef NODMA
-        *((STRPTR *) tag->ti_Data) = (unit->hu_FastZorro2 ? "USB 2.0 Highspeed Z3 PIO (030Kludge) driver for Deneb cards" : "USB 2.0 Highspeed Z3 PIO driver for Deneb cards");
+        *((STRPTR *) tag->ti_Data) = (/*unit->hu_FastZorro2 ? "USB 2.0 Highspeed Z3 PIO (030Kludge) driver for Deneb cards" :*/ "USB 2.0 Highspeed Z3 PIO driver for ReplayUSB");
 #else
         if(unit->hu_FastZorro2)
         {
@@ -737,7 +760,7 @@ WORD cmdQueryDevice(struct IOUsbHWReq *ioreq,
     }
     if(tag = FindTagItem(UHA_Copyright, taglist))
     {
-        *((STRPTR *) tag->ti_Data) = "HW ©2007-2009 Michael Böhmer, SW ©2007-2014 Chris Hodges";
+        *((STRPTR *) tag->ti_Data) = "Based on denebusb © 2007-2014 Chris Hodges";
         count++;
     }
     if(tag = FindTagItem(UHA_Version, taglist))
@@ -1372,7 +1395,7 @@ WORD cmdStartRTIso(struct IOUsbHWReq *ioreq,
                         srcptr = (ULONG *) ubr->ubr_Buffer;
                         do
                         {
-                            *memptr++ = *srcptr++;
+                            *memptr++ = shuffle(*srcptr++);
                         }
                         while(--cnt);
                         len += ubr->ubr_Length;
@@ -2172,10 +2195,10 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                     KPRINTF(10, ("LOW done by PIO to %08lx from %04lx\n", tmpval, unit->hu_DMAAddr, MMAP_BULKDMA_LOW));
 #ifndef ZORRO_II
                                     WRITEREG(ISP_MEMORY, MMAP_BULKDMA_LOW<<2);
-                                    CopyMemQuick((APTR) rmemptr, unit->hu_DMAAddr, tmpval);
+                                    CopyMemShuffle((APTR) rmemptr, unit->hu_DMAAddr, tmpval);
 #else
                                     WRITEREG(ISP_MEMORY, (MMAP_BULKDMA_LOW<<2)|IMSF_BANK1);
-                                    CopyMemQuick((APTR) &rmemptr[MMAP_BULKDMA_LOW], unit->hu_DMAAddr, tmpval);
+                                    CopyMemShuffle((APTR) &rmemptr[MMAP_BULKDMA_LOW], unit->hu_DMAAddr, tmpval);
 #endif
                                     unit->hu_DMAOffset += unit->hu_DMALength;
                                     unit->hu_DMAAddr += unit->hu_DMALength;
@@ -2235,10 +2258,10 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                     KPRINTF(10, ("HIGH done by PIO to %08lx from %04lx\n", tmpval, unit->hu_DMAAddr, MMAP_BULKDMA_HIGH));
 #ifndef ZORRO_II
                                     WRITEREG(ISP_MEMORY, MMAP_BULKDMA_HIGH<<2);
-                                    CopyMemQuick((APTR) rmemptr, unit->hu_DMAAddr, tmpval);
+                                    CopyMemShuffle((APTR) rmemptr, unit->hu_DMAAddr, tmpval);
 #else
                                     WRITEREG(ISP_MEMORY, (MMAP_BULKDMA_HIGH<<2)|IMSF_BANK1);
-                                    CopyMemQuick((APTR) &rmemptr[MMAP_BULKDMA_HIGH], unit->hu_DMAAddr, tmpval);
+                                    CopyMemShuffle((APTR) &rmemptr[MMAP_BULKDMA_HIGH], unit->hu_DMAAddr, tmpval);
 #endif
                                     unit->hu_DMAOffset += unit->hu_DMALength;
                                     unit->hu_DMAAddr += unit->hu_DMALength;
@@ -2337,7 +2360,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
 #endif
                                 } else {
                                     unit->hu_DMAStateMachine = DMASM_OUT_PREFETCH_LOW_DONE;
-                                    CopyMemQuick(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[MMAP_BULKDMA_LOW], tmpval);
+                                    CopyMemShuffle(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[MMAP_BULKDMA_LOW], tmpval);
                                     unit->hu_DMAAddr += tmpval;
                                     unit->hu_DMAOffset += tmpval;
 #ifndef NODMA
@@ -2378,7 +2401,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
 #endif
                                 } else {
                                     unit->hu_DMAStateMachine = DMASM_OUT_PREFETCH_HIGH_DONE;
-                                    CopyMemQuick(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[MMAP_BULKDMA_HIGH], tmpval);
+                                    CopyMemShuffle(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[MMAP_BULKDMA_HIGH], tmpval);
                                     unit->hu_DMAAddr += tmpval;
                                     unit->hu_DMAOffset += tmpval;
 #ifndef NODMA
@@ -2414,7 +2437,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                             {
                                 do
                                 {
-                                    *srcptr++ = *rmemptr;
+                                    *srcptr++ = shuffle(*rmemptr);
                                 } while(--cnt);
                             }
 
@@ -2422,7 +2445,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                             {
                                 UBYTE *byteptr = (UBYTE *) srcptr;
                                 KPRINTF(1, ("Remaining bytes %ld\n", len & 3));
-                                tmpval = *rmemptr;
+                                tmpval = shuffle(*rmemptr);
                                 switch(len & 3)
                                 {
                                     case 1:
@@ -2471,7 +2494,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
 
                                 // Copy buffer to target
 #if 1
-                                CopyMemQuick((((UBYTE *) ioreq->iouh_Data) + ioreq->iouh_Actual), (APTR) &unit->hu_RegBase[ptd->ptd_BufStart], (ULONG) ((ptd->ptd_BufLen + 3) & ~3));
+                                CopyMemShuffle((((UBYTE *) ioreq->iouh_Data) + ioreq->iouh_Actual), (APTR) &unit->hu_RegBase[ptd->ptd_BufStart], (ULONG) ((ptd->ptd_BufLen + 3) & ~3));
 #else
                                 srcptr = (ULONG *) (((UBYTE *) ioreq->iouh_Data) + ioreq->iouh_Actual);
                                 memptr = &unit->hu_RegBase[ptd->ptd_BufStart];
@@ -2555,7 +2578,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                 cnt = (ptd->ptd_BufLen + 3)>>2;
                                 do
                                 {
-                                    *memptr++ = *srcptr++;
+                                    *memptr++ = shuffle(*srcptr++);
                                 }
                                 while(--cnt);
                                 KPRINTF(1, ("Setup OUT %ld bytes\n", ptd->ptd_BufLen));
@@ -2602,7 +2625,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                     {
                                         do
                                         {
-                                            *srcptr++ = *rmemptr;
+                                            *srcptr++ = shuffle(*rmemptr);
                                         } while(--cnt);
                                     }
 
@@ -2610,7 +2633,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                     {
                                         UBYTE *byteptr = (UBYTE *) srcptr;
                                         KPRINTF(1, ("Remaining bytes %ld\n", len & 3));
-                                        tmpval = *rmemptr;
+                                        tmpval = shuffle(*rmemptr);
                                         switch(len & 3)
                                         {
                                             case 1:
@@ -2661,7 +2684,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                         cnt = (ptd->ptd_BufLen + 3)>>2;
                                         do
                                         {
-                                            *memptr++ = *srcptr++;
+                                            *memptr++ = shuffle(*srcptr++);
                                         }
                                         while(--cnt);
                                         KPRINTF(1, ("Setup OUT part %ld bytes\n", ptd->ptd_BufLen));
@@ -2888,7 +2911,7 @@ void uhwHandleFinishedInts(struct DenebUnit *unit)
                         {
                             do
                             {
-                                *srcptr++ = *rmemptr;
+                                *srcptr++ = shuffle(*rmemptr);
                             } while(--cnt);
                         }
 
@@ -2896,7 +2919,7 @@ void uhwHandleFinishedInts(struct DenebUnit *unit)
                         {
                             UBYTE *byteptr = (UBYTE *) srcptr;
                             KPRINTF(1, ("Remaining bytes %ld\n", len & 3));
-                            tmpval = *rmemptr;
+                            tmpval = shuffle(*rmemptr);
                             switch(len & 3)
                             {
                                 case 1:
@@ -2946,7 +2969,7 @@ void uhwHandleFinishedInts(struct DenebUnit *unit)
                             cnt = (ptd->ptd_BufLen + 3)>>2;
                             do
                             {
-                                *memptr++ = *srcptr++;
+                                *memptr++ = shuffle(*srcptr++);
                             }
                             while(--cnt);
                             KPRINTF(1, ("Setup OUT part %ld bytes\n", ptd->ptd_BufLen));
@@ -3222,7 +3245,7 @@ void uhwHandleFinishedIsos(struct DenebUnit *unit)
                         {
                             do
                             {
-                                *srcptr++ = *rmemptr;
+                                *srcptr++ = shuffle(*rmemptr);
                             } while(--cnt);
                         }
 
@@ -3230,7 +3253,7 @@ void uhwHandleFinishedIsos(struct DenebUnit *unit)
                         {
                             UBYTE *byteptr = (UBYTE *) srcptr;
                             //KPRINTF(1, ("Remaining bytes %ld\n", len & 3));
-                            tmpval = *rmemptr;
+                            tmpval = shuffle(*rmemptr);
                             switch(len & 3)
                             {
                                 case 1:
@@ -3266,7 +3289,7 @@ void uhwHandleFinishedIsos(struct DenebUnit *unit)
                         cnt = (ptd->ptd_BufLen + 3)>>2;
                         do
                         {
-                            *memptr++ = *srcptr++;
+                            *memptr++ = shuffle(*srcptr++);
                         }
                         while(--cnt);
                         KPRINTF(1, ("Setup OUT part %ld bytes\n", ptd->ptd_BufLen));
@@ -3608,14 +3631,14 @@ void uhwHandleFinishedRTIsos(struct DenebUnit *unit)
                                 {
                                     do
                                     {
-                                        *srcptr++ = *rmemptr;
+                                        *srcptr++ = shuffle(*rmemptr);
                                     } while(--cnt);
                                 }
                                 if(bytecnt & 3)
                                 {
                                     UBYTE *byteptr = (UBYTE *) srcptr;
                                     //KPRINTF(1, ("Remaining bytes %ld\n", len & 3));
-                                    tmpval = *rmemptr;
+                                    tmpval = shuffle(*rmemptr);
                                     switch(bytecnt & 3)
                                     {
                                         case 1:
@@ -3878,8 +3901,8 @@ void uhwScheduleCtrlPTDs(struct DenebUnit *unit)
 
         // copy setup data
         memptr = &unit->hu_RegBase[MMAP_SETUPAREA + (ptdnum<<1)];
-        *memptr++ = ((ULONG *) &ioreq->iouh_SetupData)[0];
-        *memptr = ((ULONG *) &ioreq->iouh_SetupData)[1];
+        *memptr++ = shuffle(((ULONG *) &ioreq->iouh_SetupData)[0]);
+        *memptr = shuffle(((ULONG *) &ioreq->iouh_SetupData)[1]);
 
         // manage endpoint going busy
         unit->hu_DevBusyReq[devadrep] = ioreq;
@@ -4103,7 +4126,7 @@ void uhwScheduleIntPTDs(struct DenebUnit *unit)
                 cnt = (ptd->ptd_BufLen + 3)>>2;
                 do
                 {
-                    *memptr++ = *srcptr++;
+                    *memptr++ = shuffle(*srcptr++);
                 }
                 while(--cnt);
                 KPRINTF(1, ("Interrupt OUT %ld bytes\n", ptd->ptd_BufLen));
@@ -4376,7 +4399,7 @@ void uhwScheduleBulkPTDs(struct DenebUnit *unit)
                     *memptr++ = *srcptr++;
                 }
                 while(--cnt);*/
-                CopyMemQuick(ioreq->iouh_Data, (APTR) &unit->hu_RegBase[ptd->ptd_BufStart], (ULONG) (ptd->ptd_BufLen + 3) & ~3);
+                CopyMemShuffle(ioreq->iouh_Data, (APTR) &unit->hu_RegBase[ptd->ptd_BufStart], (ULONG) (ptd->ptd_BufLen + 3) & ~3);
                 KPRINTF(1, ("BULK OUT %ld bytes %ld\n", ptd->ptd_BufLen, unit->hu_DevDataToggle[devadrep]));
             }
         }
@@ -4691,7 +4714,7 @@ void uhwScheduleIsoPTDs(struct DenebUnit *unit)
                 cnt = (ptd->ptd_BufLen + 3)>>2;
                 do
                 {
-                    *memptr++ = *srcptr++;
+                    *memptr++ = shuffle(*srcptr++);
                 }
                 while(--cnt);
                 KPRINTF(1, ("Interrupt OUT %ld bytes\n", ptd->ptd_BufLen));
@@ -4960,10 +4983,10 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
 #ifdef NODMA
     if(ptd->ptd_Type == PTDT_DATAOUTDMA)
     {
-        CopyMemQuick(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[unit->hu_ISPAddr], unit->hu_DMALength);
+        CopyMemShuffle(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[unit->hu_ISPAddr], unit->hu_DMALength);
     } else {
         WRITEREG(ISP_MEMORY, (unit->hu_ISPAddr<<2)|IMSF_BANK1);
-        CopyMemQuick((APTR) rmemptr, unit->hu_DMAAddr, unit->hu_DMALength);
+        CopyMemShuffle((APTR) rmemptr, unit->hu_DMAAddr, unit->hu_DMALength);
     }
 #endif
     unit->hu_DMAOffset += unit->hu_DMALength;
@@ -5044,7 +5067,7 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
             unit->hu_DMAStateMachine = DMASM_OUT_PREFETCH_LOW_DONE;
             Enable();
             KPRINTF(10, ("DMA DONE: DMASM_OUT_PTD_DONE_LOW, copying last %ld\n", tmpval));
-            CopyMemQuick(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[MMAP_BULKDMA_LOW], tmpval);
+            CopyMemShuffle(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[MMAP_BULKDMA_LOW], tmpval);
             unit->hu_DMAOffset += tmpval;
             unit->hu_DMAAddr += tmpval;
 #ifndef NODMA
@@ -5098,7 +5121,7 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
             unit->hu_DMAStateMachine = DMASM_OUT_PREFETCH_HIGH_DONE;
             Enable();
             KPRINTF(10, ("DMA DONE: DMASM_OUT_PTD_DONE_HIGH, copying last %ld\n", tmpval));
-            CopyMemQuick(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[MMAP_BULKDMA_HIGH], tmpval);
+            CopyMemShuffle(unit->hu_DMAAddr, (APTR) &unit->hu_RegBase[MMAP_BULKDMA_HIGH], tmpval);
             unit->hu_DMAOffset += tmpval;
             unit->hu_DMAAddr += tmpval;
 #ifndef NODMA
@@ -5152,7 +5175,7 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
             }
             Enable();
             WRITEREG(ISP_MEMORY, (MMAP_BULKDMA_HIGH<<2)|IMSF_BANK1);
-            CopyMemQuick((APTR) rmemptr, unit->hu_DMAAddr, tmpval);
+            CopyMemShuffle((APTR) rmemptr, unit->hu_DMAAddr, tmpval);
             unit->hu_DMAStateMachine = DMASM_NOP;
             FreeATL(ptd, unit);
             return;
@@ -5198,7 +5221,7 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
             }
             Enable();
             WRITEREG(ISP_MEMORY, (MMAP_BULKDMA_LOW<<2)|IMSF_BANK1);
-            CopyMemQuick((APTR) rmemptr, unit->hu_DMAAddr, tmpval);
+            CopyMemShuffle((APTR) rmemptr, unit->hu_DMAAddr, tmpval);
             unit->hu_DMAStateMachine = DMASM_NOP;
             FreeATL(ptd, unit);
             return;
