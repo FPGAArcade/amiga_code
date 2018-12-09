@@ -27,7 +27,7 @@ CFLAGS = $(DEB) def dprintf=kprintf ign=304 opt opttime strmer nostkchk data=fo 
 
 ##############################################################################
 
-#all: denebdmausb.device denebpiousb.device install
+#all: DenebClockport denebdmausb.device denebpiousb.device denebz2usb.device install
 all: replayusb.device install
 
 clean:
@@ -92,5 +92,5 @@ install: replayusb.device
         copy replayusb.device DEVS:USBHardware/
 
 BUMP:
-        bumprev2 VERSION=$(VERSION) FILE=$(SRC)denebusb.device_VERSION TAG=denebusb ADD="© 2007-2010 by Chris Hodges"
+        bumprev2 VERSION=$(VERSION) FILE=$(SRC)denebusb.device_VERSION TAG=denebusb ADD="© 2007-2014 by Chris Hodges"
 

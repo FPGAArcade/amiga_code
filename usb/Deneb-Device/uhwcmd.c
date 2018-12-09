@@ -125,9 +125,15 @@ WORD uhwHWInit(struct DenebUnit *unit)
     ULONG tmpval;
 
     KPRINTF(1, ("Reset\n"));
+#ifndef ZORRO_II
     WRITEMACH(MACH_CTRL, MCF_RESET);
     uhwDelayMS(1, unit, base);
     WRITEMACH(MACH_CTRL, 0);
+#else
+    WRITEMACH(MACH_CTRL_Z2, MCF_RESET);
+    uhwDelayMS(1, unit, base);
+    WRITEMACH(MACH_CTRL_Z2, 0);
+#endif
     uhwDelayMS(5, unit, base);
     KPRINTF(1, ("Mach nulled\n"));
     unit->hu_FrameCounter = 1;
@@ -243,8 +249,23 @@ WORD uhwHWInit(struct DenebUnit *unit)
     intpend = READREG(ISP_INTR);
 
     KPRINTF(1, ("Pre Int enable %08lx\n", intpend));
+#ifndef ZORRO_II
+#ifndef NODMA
+    WRITEMACH(MACH_DMAINT, MIF_ISPINT|MIF_DMAINT);
+    if(unit->hu_Buster9)
+    {
+        WRITEMACH(MACH_DMACTRL, (1<<MXS_TICKS)|(255<<MXS_QUANTUM));
+    } else {
+        WRITEMACH(MACH_DMACTRL, (1<<MXS_TICKS)|(255<<MXS_QUANTUM)|MXF_BUSTER11);
+    }
+    WRITEMACH(MACH_CTRL, MCF_INTEN|MCF_DMAINTEN);
+#else
     WRITEMACH(MACH_DMAINT, MIF_ISPINT);
     WRITEMACH(MACH_CTRL, MCF_INTEN);
+#endif
+#else
+    WRITEMACH(MACH_CTRL_Z2, MCF_INTEN);
+#endif
     KPRINTF(1, ("Post Int enable\n"));
 
     unit->hu_FrameCounter = 1;
@@ -263,6 +284,18 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
     struct DenebUnit *unit = NULL;
     BOOL selftestokay = FALSE;
     UWORD cnt;
+#ifdef ZORRO_II
+    volatile UWORD deadbeef;
+#endif
+
+#ifdef DEBUG
+#define CHECKLONGOFFSET(x) if(offsetof(struct DenebUnit, x) & 15) KPRINTF(300, ("Offset of " #x " is %lx\n", offsetof(struct DenebUnit, x)));
+    CHECKLONGOFFSET(hu_HWBase)
+    CHECKLONGOFFSET(hu_ATLDone)
+    CHECKLONGOFFSET(hu_LargeAreaFreeMap)
+    CHECKLONGOFFSET(hu_ATLPTDs)
+    CHECKLONGOFFSET(hu_DMATaskStack)
+#endif
 
     if((unitnr < 0) || (unitnr > MAXUNITS))
     {
@@ -302,6 +335,13 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
         unit->hu_Device = base;
         unit->hu_UnitNo = unitnr;
         unit->hu_HWBase = confdev->cd_BoardAddr;
+#ifndef ZORRO_II
+        // detect flakey 030
+        if((SysBase->AttnFlags & (AFF_68030|AFF_68040) == AFF_68030))
+        {
+            unit->hu_FastZorro2 = TRUE; // reuse this variable
+            MC030FREEZE;
+        }
 
         unit->hu_Buster9 = FindResident("Buster 9 ID Tag") ? TRUE : FALSE;
 
@@ -325,7 +365,13 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
         }
 
         unit->hu_RegBase = unit->hu_HWBase + MACH_USBREGS;
-        // [...]
+#else
+        unit->hu_RegBase = unit->hu_HWBase;
+        deadbeef = READMACH(MACH_FASTZORROMAGIC);
+        deadbeef = READMACH(MACH_FASTZORROMAGIC);
+        deadbeef = READMACH(MACH_FASTZORROMAGIC);
+        unit->hu_FastZorro2 = (deadbeef == 0xbeef) ? TRUE : FALSE;
+#endif
         unit->hu_ReadBasePTDs = &unit->hu_RegBase[MMAP_ISO_PTDS];
         unit->hu_ReadBaseMem = &unit->hu_RegBase[MMAP_PAYLOAD];
         if(uhwOpenTimer(unit, base))
@@ -429,6 +475,7 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
                 AddTask(nt, (APTR) &uhwDMATask, NULL);
 #endif
                 //uhwTestStuff(ioreq, unit, base);
+                MC030UNFREEZE;
                 return(unit);
             } else {
                 ioreq->iouh_Req.io_Error = IOERR_SELFTEST;
@@ -436,6 +483,7 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
             }
             uhwCloseTimer(unit, base);
         }
+        MC030UNFREEZE;
         FreeVec(unit);
         base->hd_Units[unitnr] = NULL;
     } else {
@@ -452,7 +500,11 @@ void Close_Unit(struct DenebDevice *base,
                 struct IOUsbHWReq *ioreq)
 {
     /* Disable all interrupts */
+#ifndef ZORRO_II
     WRITEMACH(MACH_CTRL, 0);
+#else
+    WRITEMACH(MACH_CTRL_Z2, 0);
+#endif
     WRITEREG(EHCI_USBCMD, 0);
     WRITEREG(ISP_HWMODECTRL, IHWCF_DENEB);
     unit->hu_NakTimeoutMsgPort.mp_Flags = PA_IGNORE;
@@ -708,7 +760,7 @@ WORD cmdQueryDevice(struct IOUsbHWReq *ioreq,
     }
     if(tag = FindTagItem(UHA_Copyright, taglist))
     {
-        *((STRPTR *) tag->ti_Data) = "Based on denebusb © 2007-2010 Chris Hodges";
+        *((STRPTR *) tag->ti_Data) = "Based on denebusb  2007-2014 Chris Hodges";
         count++;
     }
     if(tag = FindTagItem(UHA_Version, taglist))
@@ -919,42 +971,30 @@ WORD cmdFlush(struct IOUsbHWReq *ioreq,
     struct IOUsbHWReq *pioreq;
     UWORD cnt;
     struct PTDNode *ptd;
+    struct MinList *lists[5];
 
     KPRINTF(10, ("CMD_FLUSH ioreq: 0x%08lx\n", ioreq));
 
+    lists[0] = &unit->hu_RHIOQueue;
+    lists[1] = &unit->hu_CtrlXFerQueue;
+    lists[2] = &unit->hu_IntXFerQueue;
+    lists[3] = &unit->hu_IsoXFerQueue;
+    lists[4] = &unit->hu_BulkXFerQueue;
+
     Disable();
-    pioreq = (struct IOUsbHWReq *) unit->hu_RHIOQueue.mlh_Head;
-    while(((struct Node *) pioreq)->ln_Succ)
+
+    for(cnt = 0; cnt < 5; cnt++)
     {
-        Remove(pioreq);
-        pioreq->iouh_Req.io_Error = IOERR_ABORTED;
-        ReplyMsg(pioreq);
-        pioreq = (struct IOUsbHWReq *) unit->hu_RHIOQueue.mlh_Head;
+        pioreq = (struct IOUsbHWReq *) lists[cnt]->mlh_Head;
+        while(((struct Node *) pioreq)->ln_Succ)
+        {
+            Remove(pioreq);
+            pioreq->iouh_Req.io_Error = IOERR_ABORTED;
+            ReplyMsg(pioreq);
+            pioreq = (struct IOUsbHWReq *) lists[cnt]->mlh_Head;
+        }
     }
-    pioreq = (struct IOUsbHWReq *) unit->hu_CtrlXFerQueue.mlh_Head;
-    while(((struct Node *) pioreq)->ln_Succ)
-    {
-        Remove(pioreq);
-        pioreq->iouh_Req.io_Error = IOERR_ABORTED;
-        ReplyMsg(pioreq);
-        pioreq = (struct IOUsbHWReq *) unit->hu_CtrlXFerQueue.mlh_Head;
-    }
-    pioreq = (struct IOUsbHWReq *) unit->hu_IsoXFerQueue.mlh_Head;
-    while(((struct Node *) pioreq)->ln_Succ)
-    {
-        Remove(pioreq);
-        pioreq->iouh_Req.io_Error = IOERR_ABORTED;
-        ReplyMsg(pioreq);
-        pioreq = (struct IOUsbHWReq *) unit->hu_IsoXFerQueue.mlh_Head;
-    }
-    pioreq = (struct IOUsbHWReq *) unit->hu_BulkXFerQueue.mlh_Head;
-    while(((struct Node *) pioreq)->ln_Succ)
-    {
-        Remove(pioreq);
-        pioreq->iouh_Req.io_Error = IOERR_ABORTED;
-        ReplyMsg(pioreq);
-        pioreq = (struct IOUsbHWReq *) unit->hu_BulkXFerQueue.mlh_Head;
-    }
+
     // scan ATL PTDs
     for(cnt = 0; cnt < 32; cnt++)
     {
@@ -962,7 +1002,7 @@ WORD cmdFlush(struct IOUsbHWReq *ioreq,
         if(ptd->ptd_IOReq)
         {
             WRITEMEM(MMAP_ATL_PTDS + (cnt<<3), 0); // deactive PTD
-            pioreq->iouh_Req.io_Error = IOERR_ABORTED;
+            ptd->ptd_IOReq->iouh_Req.io_Error = IOERR_ABORTED;
             FreeATL(ptd, unit);
         }
     }
@@ -973,7 +1013,7 @@ WORD cmdFlush(struct IOUsbHWReq *ioreq,
         if(ptd->ptd_IOReq)
         {
             WRITEMEM(MMAP_INT_PTDS + (cnt<<3), 0); // deactive PTD
-            pioreq->iouh_Req.io_Error = IOERR_ABORTED;
+            ptd->ptd_IOReq->iouh_Req.io_Error = IOERR_ABORTED;
             FreeInt(ptd, unit);
         }
     }
@@ -984,7 +1024,7 @@ WORD cmdFlush(struct IOUsbHWReq *ioreq,
         if(ptd->ptd_IOReq)
         {
             WRITEMEM(MMAP_ISO_PTDS + (cnt<<3), 0); // deactive PTD
-            pioreq->iouh_Req.io_Error = IOERR_ABORTED;
+            ptd->ptd_IOReq->iouh_Req.io_Error = IOERR_ABORTED;
             FreeIso(ptd, unit);
         }
     }
@@ -1054,28 +1094,20 @@ WORD cmdAddIsoHandler(struct IOUsbHWReq *ioreq,
     slicesize = (ioreq->iouh_MaxPktSize+7) & ~0x7;
     memsize = ((slicesize<<1) + MMAP_GRANULE_SIZE - 1)>>MMAP_GRANULE_BITS;
     // find free space in large data area
+    memmask = (1<<memsize) - 1;
+    cnt = MMAP_TOTAL_GRANULES - memsize;
+    memoffset = MMAP_LARGEAREA;
     do
     {
-        memmask = (1<<memsize) - 1;
-        cnt = MMAP_TOTAL_GRANULES - memsize;
-        memoffset = MMAP_LARGEAREA;
-        do
+        if((unit->hu_LargeAreaFreeMap & memmask) == memmask)
         {
-            if((unit->hu_LargeAreaFreeMap & memmask) == memmask)
-            {
-                // free mem found!
-                break;
-            }
-            memmask <<= 1;
-            memoffset += MMAP_GRANULE_SIZE>>2; // longwords!
-        } while(--cnt);
-        if(cnt)
-        {
+            // free mem found!
             break;
         }
-    } while(--memsize);
-
-    if(!memsize)
+        memmask <<= 1;
+        memoffset += MMAP_GRANULE_SIZE>>2; // longwords!
+    } while(--cnt);
+    if(!cnt)
     {
         KPRINTF(20, ("Out of memory for iso data %ld bytes\n", slicesize<<1));
         // no memory for setup
@@ -1141,17 +1173,17 @@ WORD cmdAddIsoHandler(struct IOUsbHWReq *ioreq,
         ptd0->ptd_DW[0] |= ioreq->iouh_MaxPktSize<<QHA0S_MAXPKTLEN;
         ptd0->ptd_DW[5] = 0;
         // obtain right polling interval
-        if(ioreq->iouh_Interval < 2) // 0-1 µFrames
+        if(ioreq->iouh_Interval < 2) // 0-1 Frames
         {
             ptd0->ptd_IntSOFMap = 0x55;
             ptd1->ptd_IntSOFMap = 0xaa;
         }
-        else if(ioreq->iouh_Interval < 4) // 2-3 µFrames
+        else if(ioreq->iouh_Interval < 4) // 2-3 Frames
         {
             ptd0->ptd_IntSOFMap = 0x11;
             ptd1->ptd_IntSOFMap = 0x44;
         }
-        else if(ioreq->iouh_Interval < 8) // 4-7 µFrames
+        else if(ioreq->iouh_Interval < 8) // 4-7 Frames
         {
             ptd0->ptd_IntSOFMap = 0x02;
             ptd1->ptd_IntSOFMap = 0x20;
@@ -1408,7 +1440,7 @@ WORD cmdStartRTIso(struct IOUsbHWReq *ioreq,
                 {
                     sbits = 0x03;
                 }
-                if(len > 188)
+                if(len > 150)
                 {
                     isomaxpktsize = 188;
                 }
@@ -1436,10 +1468,10 @@ WORD cmdStartRTIso(struct IOUsbHWReq *ioreq,
     WRITEREG(ISP_ISOPTDSKIPMAP, ~unit->hu_IsoBusy);
     KPRINTF(1, ("New IsoSkipMap %08lx\n", READREG(ISP_ISOPTDSKIPMAP)));
 
-    if(ptd->ptd_Num + 1 > unit->hu_LastIso)
+    if(ptd->ptd_Num > unit->hu_LastIso)
     {
         // Update Last PTD bit
-        unit->hu_LastIso = ptd->ptd_Num + 1;
+        unit->hu_LastIso = ptd->ptd_Num;
         WRITEREG(ISP_ISOPTDLASTPTD, 1<<unit->hu_LastIso);
         KPRINTF(1, ("New IsoLastPtd %08lx\n", READREG(ISP_ISOPTDLASTPTD)));
     }
@@ -1492,7 +1524,7 @@ WORD cmdStopRTIso(struct IOUsbHWReq *ioreq,
         ispptd = &unit->hu_RegBase[MMAP_ISO_PTDS + (ptd->ptd_Num<<3)];
         ispptd[3] = ptd->ptd_DW[3] = 0;
         unit->hu_IsoRTMask &= ~(1<<ptd->ptd_Num);
-        unit->hu_IsoBusy |= (1<<ptd->ptd_Num);
+        unit->hu_IsoBusy &= ~(1<<ptd->ptd_Num);
         unit->hu_IsoRTDone &= ~(1<<ptd->ptd_Num);
     }
     WRITEREG(ISP_ISOPTDSKIPMAP, ~unit->hu_IsoBusy);
@@ -1615,6 +1647,11 @@ void FreeATL(struct PTDNode *ptd, struct DenebUnit *unit)
     {
         // free DMA
         unit->hu_DMAPTD = NULL;
+#ifndef NODMA
+        WRITEMACH(MACH_DMAADDRESS, 0);
+        mask = ioreq->iouh_Length;
+        CachePostDMA(ioreq->iouh_Data, &mask, (ioreq->iouh_Dir == UHDIR_IN) ? 0 : DMA_ReadFromRAM);
+#endif
         //WRITEREG(ISP_DMACONFIG, 0);
     }
     ptd->ptd_Type = PTDT_FREE;
@@ -1625,11 +1662,11 @@ void FreeATL(struct PTDNode *ptd, struct DenebUnit *unit)
     unit->hu_ATLNakMap &= ~(1<<ptd->ptd_Num);
     WRITEREG(ISP_ATLPTDSKIPMAP, ~unit->hu_ATLBusy);
 
-    if(ptd->ptd_Num + 1 == unit->hu_LastATL)
+    if(ptd->ptd_Num == unit->hu_LastATL)
     {
         // Update Last PTD bit
         unit->hu_LastATL = 0;
-        mask = unit->hu_ATLBusy;
+        mask = unit->hu_ATLBusy >> 1;
         while(mask)
         {
             mask >>= 1;
@@ -1671,11 +1708,11 @@ void FreeInt(struct PTDNode *ptd, struct DenebUnit *unit)
     unit->hu_IntBusy &= ~(1<<ptd->ptd_Num);
     unit->hu_IntNakMap &= ~(1<<ptd->ptd_Num);
     WRITEREG(ISP_INTPTDSKIPMAP, ~unit->hu_IntBusy);
-    if(ptd->ptd_Num + 1 == unit->hu_LastInt)
+    if(ptd->ptd_Num == unit->hu_LastInt)
     {
         // Update Last PTD bit
         unit->hu_LastInt = 0;
-        mask = unit->hu_IntBusy;
+        mask = unit->hu_IntBusy >> 1;
         while(mask)
         {
             mask >>= 1;
@@ -1716,11 +1753,11 @@ void FreeIso(struct PTDNode *ptd, struct DenebUnit *unit)
     unit->hu_IsoFree |= (1<<ptd->ptd_Num);
     unit->hu_IsoBusy &= ~(1<<ptd->ptd_Num);
     WRITEREG(ISP_ISOPTDSKIPMAP, ~unit->hu_IsoBusy);
-    if(ptd->ptd_Num + 1 == unit->hu_LastIso)
+    if(ptd->ptd_Num == unit->hu_LastIso)
     {
         // Update Last PTD bit
         unit->hu_LastIso = 0;
-        mask = unit->hu_IsoBusy;
+        mask = unit->hu_IsoBusy >> 1;
         while(mask)
         {
             mask >>= 1;
@@ -1741,57 +1778,32 @@ BOOL cmdAbortIO(struct IOUsbHWReq *ioreq,
     UWORD cnt;
     struct IOUsbHWReq * cmpioreq;
     BOOL foundit = FALSE;
+    struct MinList *lists[5];
 
     KPRINTF(10, ("CMD Abort on %08lx\n", ioreq));
 
+    lists[0] = &unit->hu_RHIOQueue;
+    lists[1] = &unit->hu_CtrlXFerQueue;
+    lists[2] = &unit->hu_IntXFerQueue;
+    lists[3] = &unit->hu_IsoXFerQueue;
+    lists[4] = &unit->hu_BulkXFerQueue;
+
     Disable();
-    cmpioreq = (struct IOUsbHWReq *) unit->hu_CtrlXFerQueue.mlh_Head;
-    while(((struct Node *) cmpioreq)->ln_Succ)
+    for(cnt = 0; cnt < 5; cnt++)
     {
-        if(ioreq == cmpioreq)
+        cmpioreq = (struct IOUsbHWReq *) lists[cnt]->mlh_Head;
+        while(((struct Node *) cmpioreq)->ln_Succ)
         {
-            foundit = TRUE;
+            if(ioreq == cmpioreq)
+            {
+                foundit = TRUE;
+                break;
+            }
+            cmpioreq = (struct IOUsbHWReq *) cmpioreq->iouh_Req.io_Message.mn_Node.ln_Succ;
+        }
+        if(foundit)
+        {
             break;
-        }
-        cmpioreq = (struct IOUsbHWReq *) cmpioreq->iouh_Req.io_Message.mn_Node.ln_Succ;
-    }
-    if(!foundit)
-    {
-        cmpioreq = (struct IOUsbHWReq *) unit->hu_IntXFerQueue.mlh_Head;
-        while(((struct Node *) cmpioreq)->ln_Succ)
-        {
-            if(ioreq == cmpioreq)
-            {
-                foundit = TRUE;
-                break;
-            }
-            cmpioreq = (struct IOUsbHWReq *) cmpioreq->iouh_Req.io_Message.mn_Node.ln_Succ;
-        }
-    }
-    if(!foundit)
-    {
-        cmpioreq = (struct IOUsbHWReq *) unit->hu_IsoXFerQueue.mlh_Head;
-        while(((struct Node *) cmpioreq)->ln_Succ)
-        {
-            if(ioreq == cmpioreq)
-            {
-                foundit = TRUE;
-                break;
-            }
-            cmpioreq = (struct IOUsbHWReq *) cmpioreq->iouh_Req.io_Message.mn_Node.ln_Succ;
-        }
-    }
-    if(!foundit)
-    {
-        cmpioreq = (struct IOUsbHWReq *) unit->hu_BulkXFerQueue.mlh_Head;
-        while(((struct Node *) cmpioreq)->ln_Succ)
-        {
-            if(ioreq == cmpioreq)
-            {
-                foundit = TRUE;
-                break;
-            }
-            cmpioreq = (struct IOUsbHWReq *) cmpioreq->iouh_Req.io_Message.mn_Node.ln_Succ;
         }
     }
     if(foundit)
@@ -2170,7 +2182,8 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                     unit->hu_DMALength = tmpval;
 
 #ifndef NODMA
-                                    // [...]
+                                    WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_LOW<<2)|IMSF_BANK3)|(tmpval<<MMS_LENGTHBYTES));
+                                    WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|MAF_ENABLE);
 #else
                                     unit->hu_ISPAddr = MMAP_BULKDMA_LOW;
                                     Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -2232,7 +2245,8 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                     unit->hu_DMALength = tmpval;
 
 #ifndef NODMA
-                                    // [...]
+                                    WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_HIGH<<2)|IMSF_BANK3)|(tmpval<<MMS_LENGTHBYTES));
+                                    WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|MAF_ENABLE);
 #else
                                     unit->hu_ISPAddr = MMAP_BULKDMA_HIGH;
                                     Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -2338,7 +2352,8 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                     unit->hu_DMALength = tmpval;
 
 #ifndef NODMA
-                                    // [...]
+                                    WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_LOW<<2)|IMSF_BANK3)|(tmpval<<MMS_LENGTHBYTES));
+                                    WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|(MAF_READFROMRAM|MAF_ENABLE));
 #else
                                     unit->hu_ISPAddr = MMAP_BULKDMA_LOW;
                                     Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -2378,7 +2393,8 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                                     unit->hu_DMALength = tmpval;
 
 #ifndef NODMA
-                                    // [...]
+                                    WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_HIGH<<2)|IMSF_BANK3)|(tmpval<<MMS_LENGTHBYTES));
+                                    WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|(MAF_READFROMRAM|MAF_ENABLE));
 #else
                                     unit->hu_ISPAddr = MMAP_BULKDMA_HIGH;
                                     Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -2834,15 +2850,15 @@ void uhwHandleFinishedInts(struct DenebUnit *unit)
                 {
                     if(status & QHASF_BABBLE_ERROR)
                     {
-                        KPRINTF(200, ("INTERRUPT BABBLE ERROR in µSOF %ld!\n", cnt));
+                        KPRINTF(200, ("INTERRUPT BABBLE ERROR in SOF %ld!\n", cnt));
                     }
                     else if(status & QHASF_UNDERRUN)
                     {
-                        KPRINTF(200, ("INTERRUPT UNDERRUN ERROR in µSOF %ld!\n", cnt));
+                        KPRINTF(200, ("INTERRUPT UNDERRUN ERROR in SOF %ld!\n", cnt));
                     }
                     else if(status & QHASF_TRANS_ERROR)
                     {
-                        KPRINTF(200, ("INTERRUPT TRANSACTION ERROR in µSOF %ld!\n", cnt));
+                        KPRINTF(200, ("INTERRUPT TRANSACTION ERROR in SOF %ld!\n", cnt));
                     }
                     status >>= 3;
                 }
@@ -3112,19 +3128,19 @@ void uhwHandleFinishedIsos(struct DenebUnit *unit)
                     }
                     if(len)
                     {
-                        KPRINTF(200, ("µSOF=%ld: Len=%ld\n", cnt, len));
+                        KPRINTF(200, ("SOF=%ld: Len=%ld\n", cnt, len));
                     }
                     if(status & QHASF_BABBLE_ERROR)
                     {
-                        KPRINTF(200, ("ISO BABBLE ERROR in µSOF %ld!\n", cnt));
+                        KPRINTF(200, ("ISO BABBLE ERROR in SOF %ld!\n", cnt));
                     }
                     else if(status & QHASF_UNDERRUN)
                     {
-                        KPRINTF(200, ("ISO UNDERRUN ERROR in µSOF %ld!\n", cnt));
+                        KPRINTF(200, ("ISO UNDERRUN ERROR in SOF %ld!\n", cnt));
                     }
                     else if(status & QHASF_TRANS_ERROR)
                     {
-                        KPRINTF(200, ("ISO TRANSACTION ERROR in µSOF %ld!\n", cnt));
+                        KPRINTF(200, ("ISO TRANSACTION ERROR in SOF %ld!\n", cnt));
                     }
                     status >>= 3;
                 }
@@ -3203,7 +3219,7 @@ void uhwHandleFinishedIsos(struct DenebUnit *unit)
                     }
                     if(len)
                     {
-                        KPRINTF(200, ("µSOF=%ld: Len=%ld\n", cnt, len));
+                        KPRINTF(200, ("SOF=%ld: Len=%ld\n", cnt, len));
                     }
                 }
 #endif
@@ -3468,19 +3484,19 @@ void uhwHandleFinishedRTIsos(struct DenebUnit *unit)
                     }
                     if(len)
                     {
-                        KPRINTF(200, ("µSOF=%ld: Len=%ld\n", cnt, len));
+                        KPRINTF(200, ("SOF=%ld: Len=%ld\n", cnt, len));
                     }
                     if(status & QHASF_BABBLE_ERROR)
                     {
-                        KPRINTF(200, ("ISO BABBLE ERROR in µSOF %ld!\n", cnt));
+                        KPRINTF(200, ("ISO BABBLE ERROR in SOF %ld!\n", cnt));
                     }
                     else if(status & QHASF_UNDERRUN)
                     {
-                        KPRINTF(200, ("ISO UNDERRUN ERROR in µSOF %ld!\n", cnt));
+                        KPRINTF(200, ("ISO UNDERRUN ERROR in SOF %ld!\n", cnt));
                     }
                     else if(status & QHASF_TRANS_ERROR)
                     {
-                        KPRINTF(200, ("ISO TRANSACTION ERROR in µSOF %ld!\n", cnt));
+                        KPRINTF(200, ("ISO TRANSACTION ERROR in SOF %ld!\n", cnt));
                     }
                     status >>= 3;
                 }
@@ -3551,7 +3567,7 @@ void uhwHandleFinishedRTIsos(struct DenebUnit *unit)
                     }
                     if(len)
                     {
-                        KPRINTF(10, ("µSOF=%ld: Len=%ld\n", cnt, len));
+                        KPRINTF(10, ("SOF=%ld: Len=%ld\n", cnt, len));
                     }
                 }
 #endif
@@ -3658,22 +3674,20 @@ void uhwHandleFinishedRTIsos(struct DenebUnit *unit)
                             len -= ubr->ubr_Length;
                         } while(TRUE);
                     }
+                    ptd->ptd_NakTimeoutFrame += ioreq->iouh_Interval<<1;
                     if(ioreq->iouh_Flags & UHFF_SPLITTRANS)
                     {
-                        ptd->ptd_NakTimeoutFrame += ioreq->iouh_Interval<<1;
                         ptd->ptd_DW[2] |= (ptd->ptd_NakTimeoutFrame & 0x1f)<<(3+QHA2S_MUFRAME);
                     } else {
-                        ptd->ptd_NakTimeoutFrame += ioreq->iouh_Frame<<1;
                         ptd->ptd_DW[2] |= (ptd->ptd_NakTimeoutFrame & (0x1f<<3))<<(QHA2S_MUFRAME);
                     }
                 } else {
                     KPRINTF(10, ("Iso sent %ld bytes\n", (dw3 & QHA3M_TRANSCOUNT)>>QHA3S_TRANSCOUNT));
+                    ptd->ptd_NakTimeoutFrame += ioreq->iouh_Interval<<1;
                     if(ioreq->iouh_Flags & UHFF_SPLITTRANS)
                     {
-                        ptd->ptd_NakTimeoutFrame += ioreq->iouh_Interval<<1;
                         ptd->ptd_DW[2] |= (ptd->ptd_NakTimeoutFrame & 0x1f)<<(3+QHA2S_MUFRAME);
                     } else {
-                        ptd->ptd_NakTimeoutFrame += ioreq->iouh_Frame<<1;
                         ptd->ptd_DW[2] |= (ptd->ptd_NakTimeoutFrame & (0x1f<<3))<<(QHA2S_MUFRAME);
                     }
                     len = 0;
@@ -3754,7 +3768,7 @@ void uhwHandleFinishedRTIsos(struct DenebUnit *unit)
                     ptd->ptd_DW[0] &= ~(QHA0M_TRANSLEN|QHA0M_MAXPKTLEN);
                     ptd->ptd_DW[0] |= (len<<QHA0S_TRANSLEN)|(isomaxpktsize<<QHA0S_MAXPKTLEN);
 
-                    KPRINTF(1, ("%ld\n", READREG(EHCI_FRINDEX)>>3));
+                    //KPRINTF(100, ("%ld:%ld\n", READREG(EHCI_FRINDEX)>>3, (dw3 & QHA3M_TRANSCOUNT)>>QHA3S_TRANSCOUNT));
                 }
                 // update HW PTD
                 ispptd[1] = ptd->ptd_DW[1];
@@ -3921,10 +3935,10 @@ void uhwScheduleCtrlPTDs(struct DenebUnit *unit)
         WRITEREG(ISP_ATLPTDSKIPMAP, ~unit->hu_ATLBusy);
         KPRINTF(1, ("New ATLSkipMap %08lx\n", READREG(ISP_ATLPTDSKIPMAP)));
 
-        if(ptdnum + 1 > unit->hu_LastATL)
+        if(ptdnum > unit->hu_LastATL)
         {
             // Update Last PTD bit
-            unit->hu_LastATL = ptdnum + 1;
+            unit->hu_LastATL = ptdnum;
             WRITEREG(ISP_ATLPTDLASTPTD, 1<<unit->hu_LastATL);
             KPRINTF(1, ("New ATLLastPtd %08lx\n", READREG(ISP_ATLPTDLASTPTD)));
         }
@@ -4072,15 +4086,15 @@ void uhwScheduleIntPTDs(struct DenebUnit *unit)
             }
             ptd->ptd_DW[5] = 0;
             // obtain right polling interval
-            if(ioreq->iouh_Interval < 2) // 0-1 µFrames
+            if(ioreq->iouh_Interval < 2) // 0-1 Frames
             {
                 ptd->ptd_IntSOFMap = 0xff;
             }
-            else if(ioreq->iouh_Interval < 4) // 2-3 µFrames
+            else if(ioreq->iouh_Interval < 4) // 2-3 Frames
             {
                 ptd->ptd_IntSOFMap = 0x55;
             }
-            else if(ioreq->iouh_Interval < 8) // 4-7 µFrames
+            else if(ioreq->iouh_Interval < 8) // 4-7 Frames
             {
                 ptd->ptd_IntSOFMap = 0x22;
             }
@@ -4155,10 +4169,10 @@ void uhwScheduleIntPTDs(struct DenebUnit *unit)
         WRITEREG(ISP_INTPTDSKIPMAP, ~unit->hu_IntBusy);
         KPRINTF(1, ("New IntSkipMap %08lx\n", READREG(ISP_INTPTDSKIPMAP)));
 
-        if(ptdnum + 1 > unit->hu_LastInt)
+        if(ptdnum > unit->hu_LastInt)
         {
             // Update Last PTD bit
-            unit->hu_LastInt = ptdnum + 1;
+            unit->hu_LastInt = ptdnum;
             WRITEREG(ISP_INTPTDLASTPTD, 1<<unit->hu_LastInt);
             KPRINTF(1, ("New IntLastPtd %08lx\n", READREG(ISP_INTPTDLASTPTD)));
         }
@@ -4294,7 +4308,8 @@ void uhwScheduleBulkPTDs(struct DenebUnit *unit)
                         unit->hu_DMALength = (ptd->ptd_BufLen + 3) & ~3;
 
 #ifndef NODMA
-                        // [...]
+                        WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_LOW<<2)|IMSF_BANK3)|(unit->hu_DMALength<<MMS_LENGTHBYTES));
+                        WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|(MAF_READFROMRAM|MAF_ENABLE));
 #else
                         unit->hu_ISPAddr = MMAP_BULKDMA_LOW;
                         Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -4494,10 +4509,10 @@ void uhwScheduleBulkPTDs(struct DenebUnit *unit)
         WRITEREG(ISP_ATLPTDSKIPMAP, ~unit->hu_ATLBusy);
         KPRINTF(1, ("New ATLSkipMap %08lx\n", READREG(ISP_ATLPTDSKIPMAP)));
 
-        if(ptdnum + 1 > unit->hu_LastATL)
+        if(ptdnum > unit->hu_LastATL)
         {
             // Update Last PTD bit
-            unit->hu_LastATL = ptdnum + 1;
+            unit->hu_LastATL = ptdnum;
             WRITEREG(ISP_ATLPTDLASTPTD, 1<<unit->hu_LastATL);
             KPRINTF(1, ("New ATLLastPtd %08lx\n", READREG(ISP_ATLPTDLASTPTD)));
         }
@@ -4630,7 +4645,7 @@ void uhwScheduleIsoPTDs(struct DenebUnit *unit)
                 {
                     sbits = 0x03;
                 }
-                if(isomaxpktsize > 188)
+                if(isomaxpktsize > 150)
                 {
                     isomaxpktsize = 188;
                 }
@@ -4659,15 +4674,15 @@ void uhwScheduleIsoPTDs(struct DenebUnit *unit)
             }*/
             ptd->ptd_DW[5] = 0;
             // obtain right polling interval
-            if(ioreq->iouh_Interval < 2) // 0-1 µFrames
+            if(ioreq->iouh_Interval < 2) // 0-1 Frames
             {
                 ptd->ptd_IntSOFMap = 0xff;
             }
-            else if(ioreq->iouh_Interval < 4) // 2-3 µFrames
+            else if(ioreq->iouh_Interval < 4) // 2-3 Frames
             {
                 ptd->ptd_IntSOFMap = 0x55;
             }
-            else if(ioreq->iouh_Interval < 8) // 4-7 µFrames
+            else if(ioreq->iouh_Interval < 8) // 4-7 Frames
             {
                 ptd->ptd_IntSOFMap = 0x22;
             }
@@ -4737,10 +4752,10 @@ void uhwScheduleIsoPTDs(struct DenebUnit *unit)
         WRITEREG(ISP_ISOPTDSKIPMAP, ~unit->hu_IsoBusy);
         KPRINTF(1, ("New IsoSkipMap %08lx\n", READREG(ISP_ISOPTDSKIPMAP)));
 
-        if(ptdnum + 1 > unit->hu_LastIso)
+        if(ptdnum > unit->hu_LastIso)
         {
             // Update Last PTD bit
-            unit->hu_LastIso = ptdnum + 1;
+            unit->hu_LastIso = ptdnum;
             WRITEREG(ISP_ISOPTDLASTPTD, 1<<unit->hu_LastIso);
             KPRINTF(1, ("New IsoLastPtd %08lx\n", READREG(ISP_ISOPTDLASTPTD)));
         }
@@ -4756,6 +4771,7 @@ void DECLFUNC_1(uhwSoftInt, a1, struct DenebUnit *, unit)
     DECLARG_1(a1, struct DenebUnit *, unit)
     ULONG framecnt;
 
+    MC030FLUSH;
 
     /* Update frame counter */
     framecnt = READREG(EHCI_FRINDEX);
@@ -4962,6 +4978,8 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
 #endif
     struct IOUsbHWReq *ioreq = ptd->ptd_IOReq;
 
+    MC030FLUSH;
+
 #ifdef NODMA
     if(ptd->ptd_Type == PTDT_DATAOUTDMA)
     {
@@ -4996,7 +5014,8 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
             unit->hu_DMALength = tmpval;
 
 #ifndef NODMA
-            // [...]
+            WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_HIGH<<2)|IMSF_BANK3)|(tmpval<<MMS_LENGTHBYTES));
+            WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|(MAF_READFROMRAM|MAF_ENABLE));
 #else
             unit->hu_ISPAddr = MMAP_BULKDMA_HIGH;
             Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -5037,7 +5056,8 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
                 unit->hu_DMAStateMachine = DMASM_OUT_PREFETCH_LOW;
                 unit->hu_DMALength = tmpval;
 #ifndef NODMA
-                // [...]
+                WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_LOW<<2)|IMSF_BANK3)|(tmpval<<MMS_LENGTHBYTES));
+                WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|(MAF_READFROMRAM|MAF_ENABLE));
 #else
                 unit->hu_ISPAddr = MMAP_BULKDMA_LOW;
                 Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -5090,7 +5110,8 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
                 unit->hu_DMAStateMachine = DMASM_OUT_PREFETCH_HIGH;
                 unit->hu_DMALength = tmpval;
 #ifndef NODMA
-                // [...]
+                WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_HIGH<<2)|IMSF_BANK3)|(tmpval<<MMS_LENGTHBYTES));
+                WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|(MAF_READFROMRAM|MAF_ENABLE));
 #else
                 unit->hu_ISPAddr = MMAP_BULKDMA_HIGH;
                 Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -5144,7 +5165,8 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
                 unit->hu_DMAStateMachine = DMASM_IN_READING_HIGH;
                 unit->hu_DMALength = tmpval;
 #ifndef NODMA
-                // [...]
+                WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_HIGH<<2)|IMSF_BANK3)|(tmpval<<MMS_LENGTHBYTES));
+                WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|MAF_ENABLE);
 #else
                 unit->hu_ISPAddr = MMAP_BULKDMA_HIGH;
                 Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -5189,7 +5211,8 @@ void uhwHandleDMAInt(struct DenebUnit *unit)
                 unit->hu_DMAStateMachine = DMASM_IN_READING_LOW;
                 unit->hu_DMALength = tmpval;
 #ifndef NODMA
-                // [...]
+                WRITEREG(ISP_MEMORY, ((MMAP_BULKDMA_LOW<<2)|IMSF_BANK3)|(tmpval<<MMS_LENGTHBYTES));
+                WRITEMACH(MACH_DMAADDRESS, (ULONG) unit->hu_DMAPhyAddr|MAF_ENABLE);
 #else
                 unit->hu_ISPAddr = MMAP_BULKDMA_LOW;
                 Signal(&unit->hu_DMATask, SIGF_SINGLE); // start copy task
@@ -5219,14 +5242,27 @@ ULONG DECLFUNC_1(uhwLevel6Int, a1, struct DenebUnit *, unit)
     ULONG tmpval;
     ULONG ints;
 
+    MC030FLUSH;
     //KPRINTF(1, ("(Poff)\n"));
 #ifndef NODMA
-    // [...]
+    if(ints = READMACH(MACH_DMAINT))
+    {
+        KPRINTF(5, ("MACH INT %08lx\n", ints));
+        WRITEMACH(MACH_DMAINT, ints);
+        if(ints & MIF_DMAINT)
+        {
+            // handle DMA
+            if(unit->hu_DMAPTD)
+            {
+                Signal(&unit->hu_DMATask, SIGF_SINGLE);
+                return(1);
+            }
+        }
+    }
 #endif
     if(ints = READREG(ISP_INTR))
     {
         UWORD causeit = 0;
-        WRITEREG(ISP_INTR, ints);
         if(ints & unit->hu_IntMask)
         {
             KPRINTF(1, ("INT%08lx\n", ints));
@@ -5278,6 +5314,7 @@ ULONG DECLFUNC_1(uhwLevel6Int, a1, struct DenebUnit *, unit)
                 Cause(&unit->hu_SoftInt);
             }
         }
+        WRITEREG(ISP_INTR, ints);
         return(1);
     }
     return(0);
