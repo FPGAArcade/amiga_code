@@ -1,4 +1,5 @@
 ;APS00000000000000000000000000000000000000000000000000000000000000000000000000000000
+
 ; ------------------------------
 ;
 ;	   R E P L A Y
@@ -17,6 +18,7 @@
 ; ------------------------------
 
 ;	OUTPUT	replaysd.device
+	AUTO wo ram:replaysd.device\
 
 ; ------------------------------
 ;	     Includes
@@ -27,6 +29,7 @@ ENABLE_KPRINTF
 	INCDIR 	"Include3.0:Include/"		; from devpac3
 	INCLUDE	exec/exec_lib.i
 	INCLUDE exec/io.i
+	INCLUDE exec/memory.i
 	INCLUDE exec/nodes.i
 	INCLUDE exec/resident.i
 	INCLUDE dos/dos_lib.i
@@ -36,14 +39,14 @@ ENABLE_KPRINTF
 	INCLUDE libraries/expansion.i
 	INCLUDE libraries/expansion_lib.i
 
-	INCDIR	"ASM:sddriver/"
+	INCDIR	"Devt:sddriver/"
 	INCLUDE kprintf.i
 
 ; ------------------------------
 ;	     Defines
 ; ------------------------------
 
-ENABLE_DEBUG		equ	1
+ENABLE_CMD_LINE_DEBUG	equ	0
 
 REPLAY_MANUFACTURER	equ	5060		; must match the replay vhdl side
 REPLAY_PRODUCT		equ	28
@@ -54,8 +57,6 @@ FILE_REVISION		equ	1
 ; SD Card enums
 SD_CARD_V1		equ 	0
 SD_CARD_V2		equ 	1
-
-SD_READY		equ 	1
 
 SD_BLOCK_SIZE		equ 	512
 SD_BLOCK_SIZE_SHIFT	equ 	9
@@ -72,35 +73,21 @@ RSD_SIZEOF		equ	56
 CR			equ 	13
 LF			equ 	10
 
+; SD STATE DEFINES
+SD_OK			equ	0
+SD_ERROR_TIMEOUT	equ	1
+
+; SD Card driver struct
+	RSRESET
+
+device_spi_base		rs.l	1
+device_device		rs.l	1
+device_unit		rs.b	UNIT_SIZE
+device_struct_size	rs.b	0
+
 ; ------------------------------
 ;	    MACROS
 ; ------------------------------
-
-	IFEQ ENABLE_DEBUG
-PRINT	macro
-	endm
-
-PRINTF	macro
-	endm
-	ELSE
-PRINT	macro
-	movem.l	d0-d7/a0-a6,-(sp)
-	move.l	dosbase,a6
-	move.l	#\1,d1
-	jsr		_LVOPutStr(a6)
-	movem.l	(sp)+,d0-d7/a0-a6
-	endm
-
-PRINTF	macro
-	movem.l	d0-d7/a0-a6,-(sp)
-	move.l	dosbase,a6
-	move.l	#\1,d1
-	move.l	\2,d2
-	jsr		_LVOVPrintf(a6)
-	movem.l	(sp)+,d0-d7/a0-a6
-	endm
-	
-	ENDC
 
 SPI_SD_CMD	macro
 	move.w	#\1,d0
@@ -137,27 +124,18 @@ SPI_DEASSERT_CS macro
 ; entry
 ; ----------
 entry:
-	IFNE	ENABLE_DEBUG		; Debug code
-	
-	lea		doslibname,a1
-	move.l	#0,d0
-	CALLEXEC OpenLibrary
-	tst.l	d0
-	beq.b	.finish
-	move.l	d0,dosbase
-	kprintf	"-----"
+	IFNE	ENABLE_CMD_LINE_DEBUG		; Debug code
 
 	bsr.w	init
 	bsr.w 	test_sd
 	
 .success:
 	kprintf	"...finished..."
-
-.finish:
-	move.l	dosbase,a1
-	CALLEXEC CloseLibrary
-	moveq	#0,d0 
 	
+.finish:
+	moveq.l	#0,d0
+	kprintf "[SDDriver] Shuttind down"
+	kprintf "------------------------"	
 	ELSE
 	
 	moveq.l	#-1,d0 				; error
@@ -165,6 +143,8 @@ entry:
 	ENDC
 	rts
 
+
+	IFNE	ENABLE_CMD_LINE_DEBUG		; Debug code
 
 ; ----------
 ; test_sd
@@ -206,10 +186,13 @@ test_sd:
 .done:
 	rts
 
+	ENDC
+
 ; ----------
 ; init
 ; ----------
 init:
+	kprintf "[SDDriver] initilization..."
 	bsr.w 	find_card			; todo: handle fail
 	bsr.w	init_sd
 	tst.w	d0
@@ -224,22 +207,37 @@ init:
 ; init_card
 ; ----------	
 find_card:
+	kprintf "[SDDriver] Looking for replaysd card"
 	lea	lib_expansion_name,a1
 	CALLEXEC OpenLibrary
+	tst.l	d0
+	beq.s	.failed
 	move.l	d0,a6
 	move.l	#REPLAY_MANUFACTURER,d0
 	move.l 	#REPLAY_PRODUCT,d1
 	move.l	#0,a0
 	jsr	_LVOFindConfigDev(a6)
 	tst	d0
-	beq.b	.done
-	
-	move.l	d0,a0
-	move.l	cd_BoardAddr(a0),card_base
-	move.l	card_base,d0
+	beq.b	.failed
+	move.l	d0,a0				; card base address
+	move.l	#device_struct_size,d0
+	move.l	#MEMF_PUBLIC|MEMF_CLEAR,d1
+	jsr	Malloc
+	tst	d0
+	bne.s	.failed				; cannot allocate memory
+	move.l	d0,device_ctx
+	move.l	d0,a1				; struct address
+	move.l	cd_BoardAddr(a0),device_spi_base(a1)
+	move.l 	a0,d0
+	move.l	d0,device_device(a1)
+;	move.l	cd_BoardAddr(a0),card_base
+;	move.l	card_base,d0
 	kprintf	"[find_card] base address = %lx",d0
-		
-.done:
+	bra.s	.cleanup
+.failed:
+	kprintf "[SDDriver][ERROR] no card found!"
+	moveq	#0,d0
+.cleanup:
 	move.l	a6,a1
 	CALLEXEC CloseLibrary
 	rts
@@ -252,7 +250,9 @@ find_card:
 ; init_sd
 ; ----------
 init_sd:
-	movea.l	card_base,a6			; a6 => base card address
+	move.l	device_ctx,a0
+	movea.l	device_spi_base(a0),a6
+;	movea.l	card_base,a6			; a6 => base card address
 	SPI_DEASSERT_CS
 	SPI_SET_SPEED $80			; set spi clock to about 110khz
 	moveq	#10,d6				; wait for 88 cycles
@@ -552,10 +552,6 @@ sd_cmd58:
 .done:
 	rts
 	
-; ------------------------------
-;	SPI Functions
-; ------------------------------
-
 ; ----------
 ; sd_wait_ready
 ; ----------
@@ -569,10 +565,17 @@ sd_wait_ready:
 	cmp.w	#$FF,d0
 	beq.s	.done
 	dbf	d6,.wait
+	moveq	#SD_ERROR_TIMEOUT,d0
+	rts
 	
 .done:
+	moveq	#SD_OK,d0
 	movem.l	(sp)+,d6
 	rts
+
+; ------------------------------
+;	SPI Functions
+; ------------------------------
 
 ; ----------
 ; spi_wait
@@ -613,15 +616,15 @@ spi_receive_byte:
 ; ------------------------------
 s_resident:
 	dc.w	RTC_MATCHWORD		; rt_MatchWord
-	dc.l	s_resident			; rt_MatchTags
-	dc.l	s_codeend			; rt_EndSkip
+	dc.l	s_resident		; rt_MatchTags
+	dc.l	s_codeend		; rt_EndSkip
 	dc.b	RTF_AUTOINIT		; rt_Flags
 	dc.b	FILE_VERSION		; rt_Version
-	dc.b	NT_DEVICE			; rt_Type
-	dc.b	0					; rt_Priority
-	dc.l	s_name				; rt_Name
-	dc.l	s_idstring			; rt_IdString
-	dc.l	s_inittable			; rt_Init
+	dc.b	NT_DEVICE		; rt_Type
+	dc.b	0			; rt_Priority
+	dc.l	s_name			; rt_Name
+	dc.l	s_idstring		; rt_IdString
+	dc.l	s_inittable		; rt_Init
 
 s_name:
 	dc.b	"replaysd.device",0
@@ -659,6 +662,7 @@ s_functable:
 ; a6 <- &ExecBase
 ; d0 -> &Device or 0
 init_device:
+	kprintf "[SDDRIVER] Load Device"
 ;	move.l	a4,-(sp)
 ;	move.l	d0,a4				; Fill device struct info
 ;	move.l	a6,RSD_ExecBase(a4)
@@ -684,9 +688,11 @@ init_device:
 ; a6 <- &Device
 ;
 open_device:
+	kprintf "[SDDRIVER] opening device"
 	movem.l	d2-d3/a2-a4,-(sp)
 	; TODO
 	movem.l (sp)+,d2-d3/a2-a4
+;	move.l	#IOERR_OPENFAIL,d0
 	rts
 	
 ;
@@ -844,13 +850,36 @@ cmd_flush:
 	rts
 
 ; ------------------------------
+; Memory Functions
+; ------------------------------
+Malloc:
+	movem.l d1-d7/a0-a6,-(sp)
+	CALLEXEC AllocMem
+	tst.l	d0
+	bne.s	.success
+	move.l	#-1,d0
+
+.success:	
+	movem.l (sp)+,d1-d7/a0-a6
+	rts
+
+MFree:
+	movem.l d1-d7/a0-a6,-(sp)
+	move.l	d1,a1
+	CALLEXEC FreeMem
+	tst.l	d0
+	bne.s	.success
+	move.l	#-1,d0
+
+.success:
+	movem.l (sp)+,d1-d7/a0-a6
+	rts
+
+; ------------------------------
 ;	    	 STRINGS
 ; ------------------------------
 
 	EVEN
-
-doslibname:
-	dc.b "dos.library",0
 
 lib_expansion_name:
 	EXPANSIONNAME
@@ -861,22 +890,10 @@ lib_expansion_name:
 
 	EVEN
 
-print_value:
-	dc.l 	45
-
-dosbase:
+device_ctx:
 	dc.l	0
 
-card_base:
-	dc.l	0
-
-card_state:
-	dc.w 	0
-
-card_type:
-	dc.w 	0
-
-	IFNE ENABLE_DEBUG
+	IFNE ENABLE_CMD_LINE_DEBUG
 
 ; only use of testing purpose
 debug_scratch:
