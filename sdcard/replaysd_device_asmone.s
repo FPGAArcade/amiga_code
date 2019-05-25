@@ -1,5 +1,4 @@
 ;APS00000000000000000000000000000000000000000000000000000000000000000000000000000000
-
 ; ------------------------------
 ;
 ;	   R E P L A Y
@@ -17,8 +16,7 @@
 ;
 ; ------------------------------
 
-;	OUTPUT	replaysd.device
-	AUTO wo ram:replaysd.device\
+;	AUTO wo sddriver:replaysd.device\
 
 ; ------------------------------
 ;	     Includes
@@ -28,6 +26,7 @@ ENABLE_KPRINTF
 
 	INCDIR 	"Include3.0:Include/"		; from devpac3
 	INCLUDE	exec/exec_lib.i
+	INCLUDE exec/errors.i
 	INCLUDE exec/io.i
 	INCLUDE exec/memory.i
 	INCLUDE exec/nodes.i
@@ -46,7 +45,7 @@ ENABLE_KPRINTF
 ;	     Defines
 ; ------------------------------
 
-ENABLE_CMD_LINE_DEBUG	equ	0
+ENABLE_CMD_LINE_DEBUG	equ	1
 
 REPLAY_MANUFACTURER	equ	5060		; must match the replay vhdl side
 REPLAY_PRODUCT		equ	28
@@ -74,8 +73,19 @@ CR			equ 	13
 LF			equ 	10
 
 ; SD STATE DEFINES
-SD_OK			equ	0
-SD_ERROR_TIMEOUT	equ	1
+SD_OK				equ	0
+SD_ERROR_WAIT_READY_TIMEOUT	equ	1
+SD_ERROR_INIT_FAILED		equ	2
+SD_ERROR_CMD0			equ	3
+SD_ERROR_INIT_V1		equ	4
+
+SPI_SLOW_SPEED		equ	$28
+SPI_HIGH_SPEED		equ	$0
+
+SPI_SR_BUSY		equ 	(1<<0)
+
+TIMER_TICK_FREQ		equ	50
+SD_TIMEOUT_RDY		equ	26		; (((uint32_t)(500)*(TIMER_TICK_FREQ)+999)/1000)
 
 ; SD Card driver struct
 	RSRESET
@@ -84,6 +94,18 @@ device_spi_base		rs.l	1
 device_device		rs.l	1
 device_unit		rs.b	UNIT_SIZE
 device_struct_size	rs.b	0
+
+; SD Card CID
+	RSRESET
+
+sd_cid_mfr_id		rs.b 	1
+sd_cid_app_id		rs.b 	2
+sd_cid_product_name 	rs.b 	5
+sd_cid_product_rev 	rs.b 	1
+sd_cid_product_sn	rs.l 	1
+sd_cid_mfr_date 	rs.w 	1
+sd_cid_crc		rs.b 	1
+sd_cid_struct_size 	rs.b 	0
 
 ; ------------------------------
 ;	    MACROS
@@ -126,19 +148,17 @@ SPI_DEASSERT_CS macro
 entry:
 	IFNE	ENABLE_CMD_LINE_DEBUG		; Debug code
 
+	kprintf	"[SDDriver] test mode"
 	bsr.w	init
-	bsr.w 	test_sd
-	
-.success:
-	kprintf	"...finished..."
-	
+;	bsr.w 	test_sd
+	bsr.w	cleanup
 .finish:
 	moveq.l	#0,d0
-	kprintf "[SDDriver] Shuttind down"
-	kprintf "------------------------"	
+	kprintf "----------"
+
 	ELSE
 	
-	moveq.l	#-1,d0 				; error
+	moveq.l	#-1,d0 				; error should not be launched from shell
 	
 	ENDC
 	rts
@@ -195,12 +215,25 @@ init:
 	kprintf "[SDDriver] initilization..."
 	bsr.w 	find_card			; todo: handle fail
 	bsr.w	init_sd
-	tst.w	d0
+	cmp.b 	#SD_ERROR_INIT_FAILED,d0
 	beq.s	.fail
 	rts
-			
 .fail:
+	SPI_DEASSERT_CS
 	kprintf	"*** INIT FAILED *** %ld",d0
+	rts
+
+; ----------
+; cleanup
+; ----------
+cleanup:
+	tst.l	device_ctx(pc)
+	beq.s	.finished
+	move.l	#device_struct_size,d0
+	movea.l	device_ctx,a1	
+	jsr	MFree
+	move.l	#0,a1
+.finished:
 	rts
 
 ; ----------
@@ -211,20 +244,20 @@ find_card:
 	lea	lib_expansion_name,a1
 	CALLEXEC OpenLibrary
 	tst.l	d0
-	beq.s	.failed
+	beq.w	.failed
 	move.l	d0,a6
 	move.l	#REPLAY_MANUFACTURER,d0
 	move.l 	#REPLAY_PRODUCT,d1
 	move.l	#0,a0
 	jsr	_LVOFindConfigDev(a6)
 	tst	d0
-	beq.b	.failed
+	beq.w	.failed
 	move.l	d0,a0				; card base address
 	move.l	#device_struct_size,d0
 	move.l	#MEMF_PUBLIC|MEMF_CLEAR,d1
 	jsr	Malloc
 	tst	d0
-	bne.s	.failed				; cannot allocate memory
+	beq.w	.failed				; cannot allocate memory
 	move.l	d0,device_ctx
 	move.l	d0,a1				; struct address
 	move.l	cd_BoardAddr(a0),device_spi_base(a1)
@@ -233,6 +266,8 @@ find_card:
 ;	move.l	cd_BoardAddr(a0),card_base
 ;	move.l	card_base,d0
 	kprintf	"[find_card] base address = %lx",d0
+	move.l	device_spi_base(a1),d0
+	kprintf	"[find_card] spi base address = %lx",d0
 	bra.s	.cleanup
 .failed:
 	kprintf "[SDDriver][ERROR] no card found!"
@@ -252,36 +287,44 @@ find_card:
 init_sd:
 	move.l	device_ctx,a0
 	movea.l	device_spi_base(a0),a6
-;	movea.l	card_base,a6			; a6 => base card address
 	SPI_DEASSERT_CS
-	SPI_SET_SPEED $80			; set spi clock to about 110khz
-	moveq	#10,d6				; wait for 88 cycles
+	SPI_SET_SPEED SPI_SLOW_SPEED		; set spi clock to about 110khz
+	SPI_ASSERT_CS
+	moveq	#$10,d6				; wait for 88 cycles
 	
 .wait:
 	move.w	#$FF,d0
 	bsr.w 	spi_send_byte
  	dbf	d6,.wait
-	SPI_ASSERT_CS				; send CMD0 for IDLE and SPI
-	moveq	#20,d6
+	SPI_DEASSERT_CS
+	move.w	#$FF,d0
+	bsr.w 	spi_send_byte
+	move.w	#$FF,d0
+	bsr.w 	spi_send_byte
+	SPI_ASSERT_CS
+	move.l	#$FF,d6				; send CMD0 for IDLE and SPI
 
 .cmd0:
 	bsr.w	sd_cmd0
 	cmp.b	#$1,d0
-	beq.w	.cmd0_ok
+	beq.s	.cmd0_ok
 	dbf	d6,.cmd0
-	extb.l	d0
-	kprintf	"[init_sd] cmd0 failed (ret %ld)",d0
-	moveq	#0,d0
+	kprintf	"[init_sd] cmd0 failed %ld",d0
+	moveq	#SD_ERROR_INIT_FAILED,d0
 	rts					; failed
 	
 .cmd0_ok:
+	kprintf "[init_sd] SD card in IDLE mode"
 	bsr.w 	sd_cmd8				; send CMD8
-	cmp.w 	#$1,d0 				; v2 version?
-	beq.w 	.checktype
+	cmp.b 	#$1,d0 				; v2 version?
+	bne.w 	.v1_init
+	bsr.w 	sd_get_r7			; check voltage
+	cmp.l	#$1AA,d0
+	beq.s 	.v2_init
+	moveq	#SD_ERROR_INIT_FAILED,d0
+	rts
 
-.checktype:
-	cmp.l	#$1AA,d1			; check r7
-	bne.w	.v1_init			; v1 card
+.v2_init:
 	kprintf	"[init_sd] sd v2 found"
 	move.l	#$FF,d6
 
@@ -291,29 +334,45 @@ init_sd:
 	beq.s	.acmd41success
 	dbf	d6,.acmd41
 	kprintf	"[init_sd] acmd41 timeout"
-	moveq	#0,d0				; failed
+	moveq	#SD_ERROR_INIT_FAILED,d0				; failed
 	rts
 
 .acmd41success:
-	kprintf	"acmd41 r1 %lx",d0
 	bsr.w 	sd_cmd58			; read OCR
-	tst.w	d0
-	bne.s	.finish
-	moveq	#0,d0
-	kprintf	"[init_sd] sd_cmd58 failed"
-
-.v1_init:
-	kprintf	"[init_sd] sd v1 found"
-	moveq	#0,d0				; fail as not supported * TODO *
-	bsr.w 	sd_cmd1 			; v1 card
-
-.finish:
-	SPI_DEASSERT_CS
-	SPI_SET_SPEED $0			; spi maximum clock speed
-	moveq	#1,d0				; sucess
-	kprintf	"[init_sd] SD Card ready"
+	cmp.b	#1,d0
+	beq.s	.readocr
+	kprintf	"[init_sd] sd_cmd58 failed $%lx",d0
+	moveq	#SD_ERROR_INIT_FAILED,d0
 	rts
 
+.readocr:
+	bsr.w	sd_get_r7
+	kprintf	"[init_sd] reading ocr $%lx",d0
+	and.l	#(1<<30),d0
+	beq.s	.finish
+	kprintf	"[init_sd] SDHC detected"
+	bra.s	.finish
+
+.v1_init:
+	kprintf	"[init_sd] sd v1 found cmd8 r1 : %ld",d0
+	moveq	#SD_ERROR_INIT_V1,d0				; fail as not supported * TODO *
+	rts
+	
+.finish:
+	kprintf	"[init_sd] SD Card ready"
+	bsr.w	sd_cmd10
+	cmp.b	#0,d0
+	beq.s	.decode_card
+	kprintf	"[init_sd] sd_cmd10 failed $%lx",d0
+	moveq	#SD_ERROR_INIT_FAILED,d0
+	rts
+	
+.decode_card:
+	kprintf "[init_sd] reading block"	
+	SPI_DEASSERT_CS
+	SPI_SET_SPEED SPI_HIGH_SPEED		; spi maximum clock speed
+	moveq	#SD_OK,d0			; sucess
+	rts
 
 ; ----------
 ; sd_read_blocks
@@ -418,19 +477,11 @@ sd_write_blocks:
 ; sd_cmd0
 ; ----------
 sd_cmd0:
+	movem.l	d1-d6,-(SP)
+	bsr.w	sd_wait_ready
 	SPI_SD_CMD $40,$0,$0,$0,$0,$95
-	moveq 	#10,d3
-	
-.waitr1:
-	bsr.w	spi_receive_byte	
-	cmp.w	#1,d0
-	beq.b	.done
-	dbf	d3,.waitr1
-	kprintf	"[sd_cmd0] failed ret = %ld",d0
-	moveq	#0,d0				; fail
-	rts
-
-.done:	
+	bsr.w	spi_wait_r1
+	movem.l	(SP)+,d1-d6
 	rts
 
 ; ----------
@@ -442,39 +493,53 @@ sd_cmd1:
 
 ; ----------
 ; sd_cmd8
+; Only for SDC V2
 ; ----------
 sd_cmd8:
+	movem.l d1-d6,-(SP)
+	bsr.w	sd_wait_ready
 	SPI_SD_CMD $48,$0,$0,$01,$AA,$87
-	moveq	#10,d6
-	
-.waitr1:
-	bsr.w	spi_receive_byte
-	cmp.w	#1,d0				; in idle?
-	beq.b	.done
-	dbf	d6,.waitr1
-	kprintf	"[sd_cmd8] failed ret = %lx",d0
+	bsr.w	spi_wait_r1
+	movem.l (SP)+,d1-d6
 	rts
 
-.done:
-	moveq	#3,d2
-	moveq	#0,d1				; d1 will hold r7
+; ----------
+; sd_cmd10
+; ----------
+sd_cmd10:
+	movem.l	d1-d6,-(SP)
+	bsr.w	sd_wait_ready
+	SPI_SD_CMD $4A,$0,$0,$0,$0,$1
+	bsr.w	spi_wait_r1
+	movem.l	(SP)+,d1-d6
+	rts
 
-
-.readr7:
-	bsr.w	spi_receive_byte
-	lsl.l	#8,d1
-	or.b	d0,d1
-	dbf	d2,.readr7
-	moveq	#1,d0				; success
+; ----------
+; sd_get_r7
+; ----------
+sd_get_r7:
+	moveq	#0,d0
+	moveq	#0,d1
+	bsr.w 	spi_receive_byte	; d0 = x
+	move.b 	d0,d1 			; d1 = x
+	lsl.w 	#8,d1 			; d1 = (x<<8)
+	bsr.w 	spi_receive_byte	; d0 = y
+	move.b 	d0,d1 			; d1.b = y
+	swap 	d1 			; d1 = xy00
+	bsr.w 	spi_receive_byte
+	lsl.w	#8,d0
+	move.w 	d0,d1
+	bsr.w 	spi_receive_byte
+	move.b 	d0,d1
+	move.l	d1,d0
 	rts
 
 ; ----------
 ; sd_cmd23
 ; ----------
 sd_cmd23:
-	kprintf "[sd_cmd23} NOT IMPLEMENTED"
+	kprintf "[sd_cmd23] NOT IMPLEMENTED"
 	rts
-
 
 ; ----------
 ; sd_acmd41
@@ -522,55 +587,74 @@ sd_acmd41:
 sd_cmd58:
 	bsr.w	sd_wait_ready
 	SPI_SD_CMD $7A,$0,$0,$0,$0,$FF
-	moveq	#8,d1
-
-.response:
-	bsr.w	spi_receive_byte
-	cmp.w	#$FF,d0
-	bne.s	.ok
-	dbf	d1,.response
-	moveq	#0,d0
-	rts
-
-.ok:
-	moveq	#3,d1
-	moveq	#0,d2
-	
-.readocr:
-	bsr.w	spi_receive_byte
-	and.b	#$FF,d0
-	add.b	d0,d2
-	lsl.l	#8,d2
-	dbf	d1,.readocr
-	moveq	#1,d0
-	kprintf	"[sd_cmd58] ocr = %lx",d2
-	and.l	#(1<<20)|(1<<21),d2
-	beq.s	.done
-	moveq	#0,d0
-	kprintf	"[sd_cmd58] voltage not supported"
-	
-.done:
+	bsr.w	spi_wait_r1
 	rts
 	
+;	moveq	#8,d1
+;.response:
+;	bsr.w	spi_receive_byte
+;	cmp.w	#$FF,d0
+;	bne.s	.ok
+;	dbf	d1,.response
+;	moveq	#0,d0
+;	rts
+;.ok:
+;	moveq	#3,d1
+;	moveq	#0,d2
+;	
+;.readocr:
+;	bsr.w	spi_receive_byte
+;	and.b	#$FF,d0
+;	add.b	d0,d2
+;	lsl.l	#8,d2
+;	dbf	d1,.readocr
+;	moveq	#1,d0
+;	kprintf	"[sd_cmd58] ocr = %lx",d2
+;	and.l	#(1<<20)|(1<<21),d2
+;	beq.s	.done
+;	moveq	#0,d0
+;	kprintf	"[sd_cmd58] voltage not supported"
+;	
+;.done:
+;	rts
+
 ; ----------
 ; sd_wait_ready
 ; ----------
 sd_wait_ready:
-	movem.l	d6,-(sp)
+	movem.l	d1-d6,-(sp)
+	bsr.w	spi_receive_byte
+	bsr.w 	get_tick_count
+	move.l 	d0,d6 				; timer start
 	move.w	SPI_DATA(a6),d0
-	move.l	#20,d6			; timeout
-
 .wait:
-	move.w	SPI_DATA(a6),d0
+	bsr.w	spi_receive_byte
 	cmp.w	#$FF,d0
-	beq.s	.done
-	dbf	d6,.wait
-	moveq	#SD_ERROR_TIMEOUT,d0
-	rts
-	
-.done:
+	beq.s	.success
+	bsr.w 	get_tick_count
+	move.l 	d6,d1
+	sub.l 	d0,d1
+	cmp.l 	#SD_TIMEOUT_RDY,d1
+	blt.s 	.wait
+	moveq	#SD_ERROR_WAIT_READY_TIMEOUT,d0
+	kprintf	"[sd_wait_ready] timeout"
+	bra.s 	.done
+.success:
 	moveq	#SD_OK,d0
-	movem.l	(sp)+,d6
+.done:
+	movem.l	(sp)+,d1-d6
+	rts
+
+; ----------
+; get_tick_count
+; ----------
+get_tick_count:
+	moveq	#0,d0
+	move.b 	$bfea01,d0
+	swap 	d0
+	move.b 	$bfe901,d0
+	lsl.w 	#8,d0
+	move.b 	$bfe801,d0
 	rts
 
 ; ------------------------------
@@ -581,15 +665,9 @@ sd_wait_ready:
 ; spi_wait
 ; ----------
 spi_wait:
-	move.w	#$FF,d1
-	
-.loop:
 	move.w	SPI_REG(a6),d0
-	btst	#7,d0			; busy?
-	bne.b	.ok
-	dbf	d1,.loop		; timeout?
-		
-.ok:
+	btst	#7,d0
+	beq.s	spi_wait
 	rts
 
 ; ----------
@@ -600,15 +678,33 @@ spi_send_byte:
 	bsr.w	spi_wait
 	rts
 
+spi_delay:
+	move.w	#$FF,SPI_DATA(a6)
+	bsr.w	spi_wait
+	rts
+	
 ; ----------
 ; spi_receive_byte
 ; ----------
 spi_receive_byte:
-	movem.l	d1-d2,-(sp)		; stack push
-	move.w	#$FF,SPI_DATA(a6)
-	bsr.w	spi_wait
+	bsr.w	spi_delay
 	move.w	(SPI_DATA)(a6),d0
-	movem.l	(sp)+,d1-d2		; stack pop
+	and.w	#$FF,d0
+	rts
+
+; ----------
+; spi_wait_r1
+; ----------
+spi_wait_r1:
+	movem.l	d1-d2,-(SP)
+	moveq	#20,d2
+.l:
+	bsr.w	spi_receive_byte
+	btst	#7,d0
+	beq.s	.done
+	dbf	d2,.l
+.done:
+	movem.l	(SP)+,d1-d2
 	rts
 	
 ; ------------------------------
@@ -662,7 +758,8 @@ s_functable:
 ; a6 <- &ExecBase
 ; d0 -> &Device or 0
 init_device:
-	kprintf "[SDDRIVER] Load Device"
+	kprintf "[SDDRIVER] Init Device"
+	movem.l	d0-d6/a0-a7,-(sp)
 ;	move.l	a4,-(sp)
 ;	move.l	d0,a4				; Fill device struct info
 ;	move.l	a6,RSD_ExecBase(a4)
@@ -676,6 +773,8 @@ init_device:
 ;	move.l	a0,LIB_IdString(a4)		; TODO : base address
 ;	move.l	a4,d0				; Success 
 ;	move.l	(sp)+,a4
+	moveq	#0,d0
+	movem.l	(sp)+,d0-d6/a0-a7
 	rts
 	
 ;
@@ -693,6 +792,7 @@ open_device:
 	; TODO
 	movem.l (sp)+,d2-d3/a2-a4
 ;	move.l	#IOERR_OPENFAIL,d0
+	moveq	#0,d0
 	rts
 	
 ;
@@ -703,6 +803,7 @@ open_device:
 ; d0 -> SegList or 0
 ;
 close_device:
+	kprintf "[SDDriver] Close Device"
 	moveq #0,d0
 	rts
 
@@ -710,6 +811,7 @@ close_device:
 ; expunge_device
 ; ----------
 expunge_device:
+	kprintf "[SDDriver] expunge device"
 	clr.l	d0
 	rts
 
@@ -717,6 +819,7 @@ expunge_device:
 ; abort_io
 ; ----------
 abort_io:
+	kprintf "[SDDriver] abort io"
 	clr.l	d0
 	rts
 
@@ -724,32 +827,39 @@ abort_io:
 ; Null
 ; ----------
 Null:
+	kprintf "[SDDriver] null"
 	clr.l	d0
 	rts
 
 
 ; ----------
-; begin_io
 ;
 ; a1 <- &IORequest
 ; a6 <- &Device
 ; ----------
 begin_io:
 	movem.l	a2-a4,-(SP)
-	move.l	a1,a2
-	bsr.w 	.functiontable	
-	
-.ioend:
-	movem.l (SP)+,a2-a4
-	rts
-
-.functiontable:
+	kprintf "[SDDriver] begin IO"
+	move.b	#0,IO_ERROR(a1)
 	clr.l	d0
-	move.w	IO_COMMAND(a2),d0
-	lsl.w 	#1,d0
-	lea 	io_func_table,a0
-	move.w 	(a0,d0),d0
-;	bsr.w 	(d0)
+	move.w	IO_COMMAND(a1),d0
+	cmp.w	#24,d0
+	blt.s	.do_io
+	kprintf "skipping command"
+	bra.w	.noio
+
+.do_io:
+	lsl.l 	#1,d0
+	lea 	io_func_table(pc),a6
+	move.l	a6,d1
+	clr.l	d1
+	move.w	(a6,d0.l),d1
+	add.w	(a6,d0.l),a6
+	move.l	a6,d0
+	jsr	(a6)
+
+.noio:
+	movem.l (SP)+,a2-a4
 	rts
 
 io_func_table:
@@ -777,18 +887,21 @@ io_func_table:
 	dc.w	cmd_invalid-io_func_table		; TD_REMCHANGEINT	- *
 	dc.w	cmd_invalid-io_func_table		; TD_GETGEOMETRY	- *
 	dc.w	cmd_invalid-io_func_table		; TD_EJECT		- *
+io_func_table_end:
 
 ; ----------
 ; cmd_invalid
 ; ----------
 cmd_invalid:
-	clr.l	d0
+	kprintf "[SDDriver] cmd invalid"
+	move.b #0,IO_ERROR(a1)
 	rts
 
 ; ----------
 ; cmd_reset
 ; ----------
 cmd_reset:
+	kprintf "[SDDriver] cmd reset"
 	clr.l	d0
 	rts
 
@@ -796,6 +909,7 @@ cmd_reset:
 ; cmd_read
 ; ----------
 cmd_read:
+	kprintf "[SDDriver] cmd read"
 	clr.l	d0
 	rts
 
@@ -803,7 +917,8 @@ cmd_read:
 ; td_get_drive_type
 ; ----------
 td_get_drive_type:
-	move.w 	#0,IO_ERROR(a2)
+	kprintf "[SDDriver] get drive type"
+	move.w 	#IOERR_NOCMD,IO_ERROR(a2)
 	move.l 	#DG_DIRECT_ACCESS,IO_ACTUAL(a2)
 	rts
 
@@ -811,6 +926,7 @@ td_get_drive_type:
 ; td_protect
 ; ----------
 td_protect:	
+	kprintf "[SDDriver] td prorect"
 	clr.l	d0
 	move.l	d0,IO_ACTUAL(a2)
 	rts
@@ -819,6 +935,7 @@ td_protect:
 ; cmd_write
 ; ----------
 cmd_write:
+	kprintf "[SDDriver] cmd write"
 	clr.l	d0
 	rts
 	
@@ -826,6 +943,7 @@ cmd_write:
 ; cmd_stop
 ; ----------
 cmd_stop:
+	kprintf "[SDDriver] cmd stop"
 	clr.l	d0
 	rts
 	
@@ -833,6 +951,7 @@ cmd_stop:
 ; cmd_start
 ; ----------
 cmd_start:
+	kprintf "[SDDriver] cmd start"
 	clr.l	d0
 	rts	
 
@@ -840,12 +959,14 @@ cmd_start:
 ; td_motor
 ; ----------
 td_motor:
+	kprintf "[SDDriver] td motor"
 	rts
 
 ; ----------
 ; cmd_flush
 ; ----------
 cmd_flush:
+	kprintf "[SDDriver] cmd flush"
 	clr.l	d0
 	rts
 
@@ -865,7 +986,6 @@ Malloc:
 
 MFree:
 	movem.l d1-d7/a0-a6,-(sp)
-	move.l	d1,a1
 	CALLEXEC FreeMem
 	tst.l	d0
 	bne.s	.success
