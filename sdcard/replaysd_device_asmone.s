@@ -56,6 +56,7 @@ FILE_REVISION		equ	1
 ; SD Card enums
 SD_CARD_V1		equ 	0
 SD_CARD_V2		equ 	1
+SD_CARD_SDHC		equ	2
 
 SD_BLOCK_SIZE		equ 	512
 SD_BLOCK_SIZE_SHIFT	equ 	9
@@ -87,14 +88,6 @@ SPI_SR_BUSY		equ 	(1<<0)
 TIMER_TICK_FREQ		equ	50
 SD_TIMEOUT_RDY		equ	26		; (((uint32_t)(500)*(TIMER_TICK_FREQ)+999)/1000)
 
-; SD Card driver struct
-	RSRESET
-
-device_spi_base		rs.l	1
-device_device		rs.l	1
-device_unit		rs.b	UNIT_SIZE
-device_struct_size	rs.b	0
-
 ; SD Card CID
 	RSRESET
 
@@ -106,6 +99,51 @@ sd_cid_product_sn	rs.l 	1
 sd_cid_mfr_date 	rs.w 	1
 sd_cid_crc		rs.b 	1
 sd_cid_struct_size 	rs.b 	0
+
+; SD Card CSD
+	RSRESET
+
+sd_csd_structure	rs.b	1		; some info could be bit packed
+sd_csd_taac		rs.b	1
+sd_csd_nsac		rs.b	1
+sd_csd_tran_speed	rs.b	1
+sd_csd_ccc		rs.w	1
+sd_csd_read_bl_len	rs.b	1
+sd_csd_read_bl_partial	rs.b	1
+sd_csd_write_blk_mislgn	rs.b	1
+sd_csd_read_blk_mislgn	rs.b	1
+sd_csd_dsr_imp		rs.b	1
+sd_csd_c_size		rs.w	1
+sd_csd_vdd_r_curr_min	rs.b	1
+sd_csd_vdd_r_curr_max	rs.b	1
+sd_csd_vdd_w_curr_min	rs.b	1
+sd_csd_vdd_w_curr_max	rs.b	1
+sd_csd_c_size_mult	rs.b	1
+sd_csd_erase_blk_len	rs.b	1
+sd_csd_sector_size	rs.b	1
+sd_csd_wp_grp_size	rs.b	1
+sd_csd_wp_grp_enable	rs.b	1
+sd_csd_r2w_factor	rs.b	1
+sd_csd_write_bl_len	rs.b	1
+sd_csd_write_bl_partial rs.b	1
+sd_csd_file_frmt_grp	rs.b	1
+sd_csd_copy		rs.b	1
+sd_csd_perm_wrt_prot	rs.b	1
+sd_csd_tmp_wrt_prot	rs.b	1
+sd_csd_file_format	rs.b	1
+sd_csd_crc		rs.b	1
+sd_csd_struct_size	rs.b	0
+
+; SD Card driver struct
+	RSRESET
+
+device_spi_base		rs.l	1
+device_device		rs.l	1
+device_unit		rs.b	UNIT_SIZE
+sd_card_type		rs.b	1
+sd_cid_descr		rs.b	sd_cid_struct_size
+sd_csd_descr		rs.b	sd_csd_struct_size
+device_struct_size	rs.b	0
 
 ; ------------------------------
 ;	    MACROS
@@ -217,6 +255,8 @@ init:
 	bsr.w	init_sd
 	cmp.b 	#SD_ERROR_INIT_FAILED,d0
 	beq.s	.fail
+	bsr.w	show_cid			; for debugging
+	bsr.w	show_csd
 	rts
 .fail:
 	SPI_DEASSERT_CS
@@ -339,7 +379,7 @@ init_sd:
 
 .acmd41success:
 	bsr.w 	sd_cmd58			; read OCR
-	cmp.b	#1,d0
+	cmp.b	#0,d0
 	beq.s	.readocr
 	kprintf	"[init_sd] sd_cmd58 failed $%lx",d0
 	moveq	#SD_ERROR_INIT_FAILED,d0
@@ -368,7 +408,22 @@ init_sd:
 	rts
 	
 .decode_card:
-	kprintf "[init_sd] reading block"	
+	kprintf "[init_sd] reading block"
+	bsr.w	sd_read_cid
+	cmp.b	#0,d0
+	beq.s	.read_csd
+	kprintf	"[init_sd] failed to read csd"
+
+.read_csd:
+	bsr.w	sd_cmd9
+	cmp.b	#0,d0
+	beq.s	.decode_csd
+	kprintf	"[init_sd] sd_cmd9 failed $%lx",d0
+	moveq	#SD_ERROR_INIT_FAILED,d0
+	rts
+
+.decode_csd:
+	bsr	sd_read_csd
 	SPI_DEASSERT_CS
 	SPI_SET_SPEED SPI_HIGH_SPEED		; spi maximum clock speed
 	moveq	#SD_OK,d0			; sucess
@@ -503,15 +558,198 @@ sd_cmd8:
 	movem.l (SP)+,d1-d6
 	rts
 
+sd_read_uint:
+	movem.l	d1,-(SP)
+	moveq	#0,d0
+	moveq	#0,d1
+	bsr.w 	spi_receive_byte	; d0 = x
+	move.b 	d0,d1 			; d1 = x
+	lsl.w 	#8,d1 			; d1 = (x<<8)
+	bsr.w 	spi_receive_byte	; d0 = y
+	move.b 	d0,d1 			; d1.b = y
+	swap 	d1 			; d1 = xy00
+	bsr.w 	spi_receive_byte
+	lsl.w	#8,d0
+	move.w 	d0,d1
+	bsr.w 	spi_receive_byte
+	move.b 	d0,d1
+	move.l	d1,d0
+	movem.l	(SP)+,d1
+	rts
+
+; ----------
+; show_cid
+; ----------
+show_cid:
+	movem.l d0-d6/a0-a6,-(SP)
+	moveq	#0,d0
+	moveq	#0,d1
+	move.l	device_ctx(pc),a0
+	lea	sd_cid_descr(a0),a0
+	move.b	sd_cid_mfr_id(a0),d0
+	kprintf	"[CID] Manufacturer ID:0x%lx",d0
+	move.b	sd_cid_app_id(a0),d0
+	move.b	sd_cid_app_id+1(a0),d1
+	kprintf	"[CID] App ID 0x%lx%lx",d0,d1
+	move.b	sd_cid_product_name(a0),d0
+	move.b	sd_cid_product_name+1(a0),d1
+	move.b	sd_cid_product_name+2(a0),d2
+	move.b	sd_cid_product_name+3(a0),d3
+	move.b	sd_cid_product_name+4(a0),d4
+	kprintf "[CID] Product name %c%c%c%c%c",d0,d1,d2,d3,d4
+	move.l	sd_cid_product_sn(a0),d0
+	kprintf "[CID] Product S/N 0x%lx",d0
+	moveq	#0,d0
+	move.b	sd_cid_product_rev(a0),d0
+	kprintf "[CID] Product rev %ld",d0
+	move.w	sd_cid_mfr_date(a0),d0
+	kprintf "[CID] Manufacturer date 0x%lx",d0
+	moveq	#0,d0
+	move.b	sd_cid_crc(a0),d0
+	kprintf "[CID] CRC7 Checksum 0x%lx",d0
+	movem.l (SP)+,d0-d6/a0-a6
+	rts
+
+; ----------
+; show_csd
+; ----------
+show_csd:
+	movem.l d0-d6/a0-a6,-(SP)
+	moveq	#0,d0
+	moveq	#0,d1
+	move.l	device_ctx(pc),a0
+	lea	sd_csd_descr(a0),a0
+	movem.l (SP)+,d0-d6/a0-a6
+	rts
+
+; ----------
+; sd_wait_data_stream
+; ----------
+sd_wait_data_stream:
+	bsr.w	spi_receive_byte
+	cmp.b	#$FF,d0
+	beq.s	sd_wait_data_stream
+	rts
+
+; ----------
+; sd_read_cid
+; ----------
+sd_read_cid:
+	movem.l	d1-d6,-(SP)
+	bsr.w	sd_wait_data_stream	; now waiting for the datastream
+	cmp.b	#$FE,d0
+	beq.s	.read_data
+	moveq	#1,d0
+	bra.w	.finish
+.read_data:
+	bsr.w	sd_read_uint
+	move.l	d0,d1
+	bsr.w	sd_read_uint
+	move.l	d0,d2
+	bsr.w	sd_read_uint
+	move.l	d0,d3
+	bsr.w	sd_read_uint
+	move.l	d0,d4
+	bsr.w	sd_read_uint				; Read CRC but we dont use it
+	bsr.w	sd_read_uint
+	move.l	device_ctx(pc),a0
+	lea	sd_cid_descr(a0),a0
+	kprintf	"[CID]: $%lx $%lx $%lx $%lx",d1,d2,d3,d4
+	move.l	d1,d6					; manufacturer
+	swap	d6
+	lsr.w	#8,d6
+	and.b	#$FF,d6
+	move.b	d6,sd_cid_mfr_id(a0)
+	move.l	d1,d6					; app id
+	lsr.l	#8,d6
+	move.b	d6,sd_cid_app_id+1(a0)
+	lsr.w	#8,d6
+	move.b	d6,sd_cid_app_id+0(a0)
+	move.l	d1,d6					; product name
+	move.b	d6,sd_cid_product_name+0(a0)
+	move.l	d2,d6
+	move.b	d6,sd_cid_product_name+4(a0)
+	lsr.w	#8,d6
+	move.b	d6,sd_cid_product_name+3(a0)
+	swap	d6
+	move.b	d6,sd_cid_product_name+2(a0)
+	lsr.w	#8,d6
+	move.b	d6,sd_cid_product_name+1(a0)
+	move.l	d3,d6					; product sn
+	lsl.l	#8,d6
+	andi.l	#$FFFFFF00,d6
+	move.l	d4,d5
+	swap	d5
+	lsr.w	#8,d5
+	or.b	d5,d6
+	move.l	d6,sd_cid_product_sn(a0)
+	move.l	d3,d6					; product rev
+	swap	d6
+	lsr.w	#8,d6
+	move.b	d6,sd_cid_product_rev(a0)
+	move.l	d4,d6					; mfg date
+	lsr.l	#8,d6
+	andi.l	#$FFF,d6
+	move.w	d6,sd_cid_mfr_date(a0)
+	move.l	d4,d6					; crc
+	lsr.l	#1,d6
+	andi.l	#$7F,d6
+	move.b	d6,sd_cid_crc(a0)
+	moveq	#0,d0
+.finish:
+	movem.l	(SP)+,d1-d6
+	rts
+
+; ----------
+; sd_read_csd
+; ----------
+sd_read_csd:
+	movem.l	d1-d6,-(SP)
+	bsr.w	sd_wait_data_stream	; now waiting for the datastream
+	cmp.b	#$FE,d0
+	beq.s	.read_data
+	moveq	#1,d0
+	bra.w	.finish
+.read_data:
+	bsr.w	sd_read_uint
+	move.l	d0,d1
+	bsr.w	sd_read_uint
+	move.l	d0,d2
+	bsr.w	sd_read_uint
+	move.l	d0,d3
+	bsr.w	sd_read_uint
+	move.l	d0,d4
+	bsr.w	sd_read_uint		; Read CRC but we dont use it
+	bsr.w	sd_read_uint
+	move.l	device_ctx(pc),a0
+	lea	sd_cid_descr(a0),a0
+	kprintf	"[CSD]: $%lx $%lx $%lx $%lx",d1,d2,d3,d4
+	move.l	d1,d6
+	swap	d6
+	lsr.l	#6,d6
+	and.l	#$3,d6
+	kprintf	"[CSD_STRUCTURE] %ld",d6
+	moveq	#0,d0
+.finish:
+	movem.l	(SP)+,d1-d6
+	rts
+
+; ----------
+; sd_cmd9
+; ----------
+sd_cmd9:
+	bsr.w	sd_wait_ready
+	SPI_SD_CMD $49,$0,$0,$0,$0,$1
+	bsr.w	spi_wait_r1
+	rts
+
 ; ----------
 ; sd_cmd10
 ; ----------
 sd_cmd10:
-	movem.l	d1-d6,-(SP)
 	bsr.w	sd_wait_ready
 	SPI_SD_CMD $4A,$0,$0,$0,$0,$1
 	bsr.w	spi_wait_r1
-	movem.l	(SP)+,d1-d6
 	rts
 
 ; ----------
@@ -547,35 +785,18 @@ sd_cmd23:
 sd_acmd41:
 	movem.l	d1-d6,-(sp)
 	bsr.w	sd_wait_ready
-	tst.w	d0
-	beq	.fail
-	SPI_SD_CMD $77,$0,$0,$0,$0,$65		; cmd55
-	moveq	#8,d1
-
-.response:
-	bsr.w	spi_receive_byte		; r1
-	cmp.w	#$FF,d0
-	bne.w	.ok
-	dbf	d1,.response
-	kprintf	"[sd_acmd41] timeout"
-	moveq	#0,d0
-	rts					; time out
-
-.ok:
-	cmpi.w	#1,d0				; stil in IDLE?
+	SPI_SD_CMD $77,$0,$0,$0,$0,$FF		; cmd55
+	bsr.w	spi_wait_r1
+	cmp.b	#$1,d0
 	bgt	.fail
 	bsr.w	sd_wait_ready
 	SPI_SD_CMD $69,$40,$0,$0,$0,$FF		; amcd41
-	moveq	#10,d6
-
-.waitr1:
-	bsr.w	spi_receive_byte
-	cmp.w	#1,d0
-	beq.b	.done
-	dbf	d6,.waitr1
-
+	bsr.w	spi_wait_r1
+	bra.s	.done
+	
 .fail:
 	moveq	#0,d0
+	kprintf "[sd_acmd41] fail"
 
 .done:
 	movem.l	(sp)+,d1-d6
