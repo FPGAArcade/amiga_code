@@ -16,7 +16,7 @@
 ;
 ; ------------------------------
 
-;	AUTO wo sddriver:replaysd.device\
+	AUTO wo sddriver:replaysd.device\
 
 ; ------------------------------
 ;	     Includes
@@ -45,7 +45,7 @@ ENABLE_KPRINTF
 ;	     Defines
 ; ------------------------------
 
-ENABLE_CMD_LINE_DEBUG	equ	1
+ENABLE_CMD_LINE_DEBUG	equ	0
 
 REPLAY_MANUFACTURER	equ	5060		; must match the replay vhdl side
 REPLAY_PRODUCT		equ	28
@@ -54,9 +54,10 @@ FILE_VERSION		equ	0
 FILE_REVISION		equ	1
 
 ; SD Card enums
-SD_CARD_V1		equ 	0
-SD_CARD_V2		equ 	1
-SD_CARD_SDHC		equ	2
+SD_CARD_NONE		equ	0
+SD_CARD_V1		equ 	1
+SD_CARD_V2		equ 	2
+SD_CARD_SDHC		equ	3
 
 SD_BLOCK_SIZE		equ 	512
 SD_BLOCK_SIZE_SHIFT	equ 	9
@@ -251,6 +252,7 @@ test_sd:
 ; ----------
 init:
 	kprintf "[SDDriver] initilization..."
+	move.l	4.w,a4
 	bsr.w 	find_card			; todo: handle fail
 	bsr.w	init_sd
 	cmp.b 	#SD_ERROR_INIT_FAILED,d0
@@ -278,33 +280,43 @@ cleanup:
 
 ; ----------
 ; init_card
+; a4 => execlibrary base
 ; ----------	
 find_card:
+	movem.l	d1-d6/a0-a6,-(SP)
 	kprintf "[SDDriver] Looking for replaysd card"
-	lea	lib_expansion_name,a1
+	lea	lib_expansion_name(pc),a1
+	move.l	a1,d0
 	CALLEXEC OpenLibrary
 	tst.l	d0
-	beq.w	.failed
+	bne.s	.findconfig
+	kprintf	"[SDDriver] cannot open expansion library"
+	bra.w	.failed
+.findconfig:
 	move.l	d0,a6
 	move.l	#REPLAY_MANUFACTURER,d0
 	move.l 	#REPLAY_PRODUCT,d1
 	move.l	#0,a0
 	jsr	_LVOFindConfigDev(a6)
 	tst	d0
-	beq.w	.failed
+	bne.s	.initdev
+	kprintf	"[SDDriver]cannot find device"
+	bra.w	.failed
+.initdev:
 	move.l	d0,a0				; card base address
 	move.l	#device_struct_size,d0
 	move.l	#MEMF_PUBLIC|MEMF_CLEAR,d1
 	jsr	Malloc
 	tst	d0
-	beq.w	.failed				; cannot allocate memory
+	bne.s	.fill_device
+	kprintf	"[SDDriver] cannot allocate memory"
+	bra.w	.failed
+.fill_device:
 	move.l	d0,device_ctx
 	move.l	d0,a1				; struct address
 	move.l	cd_BoardAddr(a0),device_spi_base(a1)
 	move.l 	a0,d0
 	move.l	d0,device_device(a1)
-;	move.l	cd_BoardAddr(a0),card_base
-;	move.l	card_base,d0
 	kprintf	"[find_card] base address = %lx",d0
 	move.l	device_spi_base(a1),d0
 	kprintf	"[find_card] spi base address = %lx",d0
@@ -315,6 +327,8 @@ find_card:
 .cleanup:
 	move.l	a6,a1
 	CALLEXEC CloseLibrary
+	jsr	_LVOCloseLibrary(a4)
+	movem.l	(SP)+,d1-d6/a0-a6
 	rts
 
 ; ------------------------------
@@ -325,6 +339,7 @@ find_card:
 ; init_sd
 ; ----------
 init_sd:
+	movem.l	d1-d6/a0-a6,-(SP)
 	move.l	device_ctx,a0
 	movea.l	device_spi_base(a0),a6
 	SPI_DEASSERT_CS
@@ -351,7 +366,7 @@ init_sd:
 	dbf	d6,.cmd0
 	kprintf	"[init_sd] cmd0 failed %ld",d0
 	moveq	#SD_ERROR_INIT_FAILED,d0
-	rts					; failed
+	bra.w	.done
 	
 .cmd0_ok:
 	kprintf "[init_sd] SD card in IDLE mode"
@@ -362,7 +377,7 @@ init_sd:
 	cmp.l	#$1AA,d0
 	beq.s 	.v2_init
 	moveq	#SD_ERROR_INIT_FAILED,d0
-	rts
+	bra.w	.done
 
 .v2_init:
 	kprintf	"[init_sd] sd v2 found"
@@ -375,7 +390,7 @@ init_sd:
 	dbf	d6,.acmd41
 	kprintf	"[init_sd] acmd41 timeout"
 	moveq	#SD_ERROR_INIT_FAILED,d0				; failed
-	rts
+	bra.w	.done
 
 .acmd41success:
 	bsr.w 	sd_cmd58			; read OCR
@@ -383,7 +398,7 @@ init_sd:
 	beq.s	.readocr
 	kprintf	"[init_sd] sd_cmd58 failed $%lx",d0
 	moveq	#SD_ERROR_INIT_FAILED,d0
-	rts
+	bra.w	.done
 
 .readocr:
 	bsr.w	sd_get_r7
@@ -396,7 +411,7 @@ init_sd:
 .v1_init:
 	kprintf	"[init_sd] sd v1 found cmd8 r1 : %ld",d0
 	moveq	#SD_ERROR_INIT_V1,d0				; fail as not supported * TODO *
-	rts
+	bra.w	.done
 	
 .finish:
 	kprintf	"[init_sd] SD Card ready"
@@ -405,7 +420,7 @@ init_sd:
 	beq.s	.decode_card
 	kprintf	"[init_sd] sd_cmd10 failed $%lx",d0
 	moveq	#SD_ERROR_INIT_FAILED,d0
-	rts
+	bra.w	.done
 	
 .decode_card:
 	kprintf "[init_sd] reading block"
@@ -420,13 +435,16 @@ init_sd:
 	beq.s	.decode_csd
 	kprintf	"[init_sd] sd_cmd9 failed $%lx",d0
 	moveq	#SD_ERROR_INIT_FAILED,d0
-	rts
+	bra.s	.done
 
 .decode_csd:
 	bsr	sd_read_csd
 	SPI_DEASSERT_CS
 	SPI_SET_SPEED SPI_HIGH_SPEED		; spi maximum clock speed
 	moveq	#SD_OK,d0			; sucess
+
+.done:
+	movem.l	(SP)+,d1-d6/a0-a6
 	rts
 
 ; ----------
@@ -619,6 +637,15 @@ show_csd:
 	moveq	#0,d1
 	move.l	device_ctx(pc),a0
 	lea	sd_csd_descr(a0),a0
+	move.b	sd_csd_structure(a0),d0
+	kprintf "[CSD] Structure %lx",d0
+	move.b	sd_csd_taac(a0),d0
+	kprintf "[CSD] Taac %lx",d0
+	move.b	sd_csd_nsac(a0),d0
+	kprintf "[CSD] Nsac %lx",d0
+	move.b	sd_csd_tran_speed(a0),d0
+	kprintf "[CSD] Max transfert rate 0x%lx",d0
+	
 	movem.l (SP)+,d0-d6/a0-a6
 	rts
 
@@ -719,16 +746,20 @@ sd_read_csd:
 	move.l	d0,d3
 	bsr.w	sd_read_uint
 	move.l	d0,d4
-	bsr.w	sd_read_uint		; Read CRC but we dont use it
+	bsr.w	sd_read_uint				; Read CRC but we dont use it
 	bsr.w	sd_read_uint
 	move.l	device_ctx(pc),a0
-	lea	sd_cid_descr(a0),a0
+	lea	sd_csd_descr(a0),a0
 	kprintf	"[CSD]: $%lx $%lx $%lx $%lx",d1,d2,d3,d4
-	move.l	d1,d6
-	swap	d6
-	lsr.l	#6,d6
-	and.l	#$3,d6
-	kprintf	"[CSD_STRUCTURE] %ld",d6
+	move.l	d1,d6					; max transfert rate
+	move.b	d6,sd_csd_tran_speed(a0)
+	lsl.w	#8,d6					; nsac
+	move.b	d6,sd_csd_nsac(a0)
+	swap	d6					; taac
+	move.b	d6,sd_csd_taac(a0)
+	lsr.w	#8,d6					; csd struct
+	lsr.w	#6,d6
+	move.b	d6,sd_csd_structure(a0)
 	moveq	#0,d0
 .finish:
 	movem.l	(SP)+,d1-d6
@@ -980,22 +1011,32 @@ s_functable:
 ; d0 -> &Device or 0
 init_device:
 	kprintf "[SDDRIVER] Init Device"
-	movem.l	d0-d6/a0-a7,-(sp)
-;	move.l	a4,-(sp)
-;	move.l	d0,a4				; Fill device struct info
+	move.l	a6,d1
+	move.l	a4,-(SP)
+	move.l	d0,a4
+	bsr.w	find_card
+	cmp.b	#0,d0
+	beq.w	.error
+	lea	device_ctx(pc),a0
+	move.l	a4,d0
+	move.l	d0,device_device(a0)		; set device pointer
+	bsr.w	init_sd
 ;	move.l	a6,RSD_ExecBase(a4)
 ;	move.l	a0,RSD_SegList(a4)
 ;	move.b	#NT_DEVICE,LN_Type(a4)
-;	lea	s_name(pc),a0
-;	move.l	a0,LN_Name(a4)
-;	move.b	#LIBF_SUMUSED+LIBF_CHANGED,LIB_Flags(a4)
-;	move.b	#FILE_VERSION<<16+FILE_REVISION,LIB_Version(a4)
-;	lea	s_idstring(pc),a0
-;	move.l	a0,LIB_IdString(a4)		; TODO : base address
-;	move.l	a4,d0				; Success 
-;	move.l	(sp)+,a4
+	lea	s_name(pc),a0
+	move.l	a0,LN_NAME(a4)
+	move.b	#LIBF_SUMUSED+LIBF_CHANGED,LIB_FLAGS(a4)
+	move.l	#FILE_VERSION<<16+FILE_REVISION,LIB_VERSION(a4)
+	lea	s_idstring(pc),a0
+	move.l	a0,LIB_IDSTRING(a4)
+	move.l	d0,a4
+	moveq	#1,d0
+.error:
+	kprintf	"[SDDRIVER] failed init_device"
 	moveq	#0,d0
-	movem.l	(sp)+,d0-d6/a0-a7
+.finish:
+	movem.l	(sp)+,a4
 	rts
 	
 ;
@@ -1010,10 +1051,25 @@ init_device:
 open_device:
 	kprintf "[SDDRIVER] opening device"
 	movem.l	d2-d3/a2-a4,-(sp)
-	; TODO
+	tst.l	a1
+	beq.s	.fail
+	cmp.l	#0,d0
+	beq.s	.fail
+	bsr.w	init_sd
+	cmp.l	#SD_OK,d0
+	bne.s	.fail
+	lea	device_ctx(pc),a2
+	lea	device_unit(a2),a2
+	move.l	a2,d2
+	move.l	d2,IO_UNIT(a1)			; set pointer to our unit
+	move.b	#UNITF_ACTIVE,UNIT_FLAGS(a2)	; update device struct
+	move.w	#1,UNIT_OPENCNT(a2)	
+	moveq	#0,d0				; all ok
+	bra.s	.done
+.fail:
+	move.l	#IOERR_OPENFAIL,d0
+.done:
 	movem.l (sp)+,d2-d3/a2-a4
-;	move.l	#IOERR_OPENFAIL,d0
-	moveq	#0,d0
 	rts
 	
 ;
@@ -1196,6 +1252,7 @@ cmd_flush:
 ; ------------------------------
 Malloc:
 	movem.l d1-d7/a0-a6,-(sp)
+;	jsr	_LVOAllocMem(a4)
 	CALLEXEC AllocMem
 	tst.l	d0
 	bne.s	.success
@@ -1207,6 +1264,7 @@ Malloc:
 
 MFree:
 	movem.l d1-d7/a0-a6,-(sp)
+;	jsr	_LVOFreeMem(a4)
 	CALLEXEC FreeMem
 	tst.l	d0
 	bne.s	.success
