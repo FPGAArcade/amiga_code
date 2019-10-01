@@ -1,4 +1,4 @@
-; ./vasmm68k_mot -Fbin -m68060 bootrom/bootrom.s -o bootrom/bootrom.bin
+; ./vasmm68k_mot -showcrit -pic -Fbin -m68000 bootrom/bootrom.s -o bootrom/bootrom.bin
 
 ROM_MODE = 1
 
@@ -78,7 +78,7 @@ ROM_START
 		bra.b	S
 ; ---------------------------------------------------------------------------
 		;	 0123456789abcdef
-		dc.b	  0, '$VER: replay.rom 1.0 (16.9.2018) '
+		dc.b	  0, '$VER: replay.rom 1.1 (30.8.2019) '
 		dc.b	      'FPGAArcade' 
 		dc.b	'  Replay 68060  '
 		dc.b	' Bootstrap ROM ',0
@@ -101,43 +101,55 @@ S:
 		move.w	#5000,d1
 .delay		dbf	d1,.delay
 
-	; Overwrite 'Illegal Instruction' vector
-		movec	VBR,d7
-		move.l	d7,a0
-		move.l	$10(a0),a6
-		lea	IllegalTrap(pc),a1
-		move.l	a1,$10(a0)
-
 	; Setup stack (in case we're not running on an 060)
 		move.l	#$10000,sp
+
+	; Overwrite 'Illegal Instruction' vector (twice - non-VBR and VBR)
+		moveq.l	#0,d7		; no VBR => d7 = $0 (MC68000)
+		movea.l	d7,a0
+		lea	IllegalTrap(pc),a1
+		move.l	$10(a0),a6	; old ILLEGAL
+		move.l	a1,$10(a0)
+
+	; Will cause ILLEGAL on 000
+	;	movec	VBR,d7
+		dc.w	$4E7A,$7801
+
+		move.l	a6,$10(a0)	; Restore memory at 10.w
+
+		move.l	d7,a0		; d7 = VBR
+		move.l	$10(a0),a6	; old ILLEGAL
+		move.l	a1,$10(a0)
 
 	; Disable 060 FPU
 	IFNE	ROM_MODE
 		moveq.l	#2,d0
-		movec	d0,pcr
+	;	movec	d0,PCR
+		dc.w	$4E7B,$0808
 	ENDC
 
 ; ---------------------------------------------------------------------------
 
 	; COLOR00 'rainbow'
-Rainbow:	move.w	#0,d0
+Rainbow:	moveq.l	#0,d0
 		move.w	#$200,$100(a4)
 		move.w	d0,$110(a4)
 
 .loop1:		move.w	d0,$180(a4)
 		move.w	#$A,d1
 .loop2:		dbf	d1,.loop2
-		addi.w	#1,d0
+		addq.w	#1,d0
 		bcc.b	.loop1
 
 ; ---------------------------------------------------------------------------
-Display:
+RestoreIllegal:
 
 	; First restore exception vector
 	
 		move.l	d7,a0
 		move.l	a6,$10(a0)
 
+Display:
 	; Copy copper and logo to CHIP
 
 		lea	CHIP_START(pc),a0
@@ -160,7 +172,7 @@ Display:
 		move.w	d0,2(a0)
 		swap	d0
 		add.w	#2002,d0
-		add.w	#8,a0
+		addq.w	#8,a0
 		dbf	d7,.setbpl
 
 	; Enable Copper and Bitplanes
@@ -192,7 +204,7 @@ NUM_FRAMES = 64
 		FADE	$010,$0f0
 		FADE	$100,$f00
 
-		adda.w	#4,a1
+		addq.w	#4,a1
 		dbf	d3,.setcol
 
 	; Jump back to the Kickstart (a5) ?
@@ -202,9 +214,9 @@ NUM_FRAMES = 64
 		jmp	(a5)
 ; ---------------------------------------------------------------------------
 
-IllegalTrap:
+IllegalTrap: ; (d7 = VBR, a6 = old ILLEGAL vector)
 	; Overwrite PC and return
-		lea	Display(pc),a0
+		lea	RestoreIllegal(pc),a0
 		move.l	a0,2(sp)
 		rte
 
