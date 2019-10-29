@@ -1,3 +1,16 @@
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; repleyeth.device - SANAII device driver for the REPLAY 68060 daughterboard
+; Copyright (C) Erik Hemming
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 ; ./vasmm68k_mot -m68020 -Fhunkexe -kick1hunks -nosym -showcrit replayeth.s -o replayeth.device -I $(USERPROFILE)/Dropbox/NDK_3.9/Include/include_i -I sana2_v2/include -L replayeth.txt
 
 ; This device driver is split into three parts

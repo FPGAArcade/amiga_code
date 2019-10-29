@@ -1,3 +1,18 @@
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; AddReplayMem - Memory configuration tool for the REPLAY Amiga core
+; Copyright (C) FPGAArcade community
+;
+; Contributors : Mike Johnson, Jim Drew, Erik Hemming
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 ; vasmm68k_mot -Fhunkexe -kick1hunks addmem.asm -L addmem.list -nosym -m68000 -o AddReplayMem -I ~/Documents/amiga-root/SYS/Code/NDK_3.9/Include/include_i
 
 	include	exec/nodes.i

@@ -17,4 +17,6 @@ It has been moderately tested (with basic success) with
 
 (using ahi.device 4.18)
 
+This software is licensed under LPGLv2.1 ; see LICENSE file
+
 ~erique

@@ -1,4 +1,16 @@
-;APS00000000000000000000000000000000000000000000000000000000000000000000000000000000
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; replay.audio - AHI audio device driver for the REPLAY Amiga core
+; Copyright (C) Erik Hemming
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 	AUTO	wb Devs:AudioModes/replay\BEG\END\
 
 	incdir	sys:code/ndk_3.9/include/include_i/

@@ -1,3 +1,18 @@
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; Replay.card - P96 RTG driver for the REPLAY Amiga core
+; Copyright (C) FPGAArcade community
+;
+; Contributors : Jakub Bednarski, Mike Johnson, Jim Drew, Erik Hemming, Nicolas Hamel
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 PSSO_BoardInfo_RegisterBase = 0
 PSSO_BoardInfo_MemoryBase = 4
 PSSO_BoardInfo_MemoryIOBase = 8

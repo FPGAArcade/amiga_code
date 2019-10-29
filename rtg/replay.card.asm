@@ -1,3 +1,18 @@
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; Replay.card - P96 RTG driver for the REPLAY Amiga core
+; Copyright (C) FPGAArcade community
+;
+; Contributors : Jakub Bednarski, Mike Johnson, Jim Drew, Erik Hemming, Nicolas Hamel
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 ; 1.24   - Fix fast mem alloc with 060db (eriQue)
 ;           Request MMU cache mode change (040/060)
 ; 1.0.23 - Made compatible with ASM-One/AsmPro and PhxAss and vasm (eriQue)

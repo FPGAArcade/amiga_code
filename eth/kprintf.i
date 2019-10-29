@@ -1,3 +1,16 @@
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; repleyeth.device - SANAII device driver for the REPLAY 68060 daughterboard
+; Copyright (C) Erik Hemming
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 kprintf	MACRO
 	IFD	ENABLE_KPRINTF
 ;	cmp.l	#$baadc0de,0.l		; kludge to dynamically enable/disable printf's

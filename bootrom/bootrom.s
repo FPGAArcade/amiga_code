@@ -1,3 +1,16 @@
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; db060 bootrom - CPU/FPU startup config for the REPLAY 68060 daughterboard
+; Copyright (C) Erik Hemming
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 ; ./vasmm68k_mot -showcrit -pic -Fbin -m68000 bootrom/bootrom.s -o bootrom/bootrom.bin
 
 ROM_MODE = 1

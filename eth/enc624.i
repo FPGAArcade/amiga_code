@@ -1,3 +1,16 @@
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; repleyeth.device - SANAII device driver for the REPLAY 68060 daughterboard
+; Copyright (C) Erik Hemming
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 ; The USB/Ethernet Z3 'card' is located at $4000.0000 (base address).
 ; The ENC624 address space starts at $4030.0000 and is repeated in 64kB chunks
 ;

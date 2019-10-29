@@ -1,4 +1,17 @@
 ;APS00000000000000000000000000000000000000000000000000000000000000000000000000000000
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; replaysd.device - SPI/SDCARD device driver for the REPLAY 68060 daughterboard
+; Copyright (C) Nicolas Hamel
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 ; ------------------------------
 ;
 ;	   R E P L A Y

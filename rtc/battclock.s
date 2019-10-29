@@ -1,3 +1,18 @@
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; battclock.resource - Replacement RTC device driver for the REPLAY 68060 daughterboard
+; Copyright (C) FPGAArcade community
+;
+; Contributors : Erik Hemming
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 ;./vasmm68k_mot -Fhunkexe -align -nosym battclock.s -o battclock.resource -I ~/Documents/amiga-root/SYS/Code/NDK_3.9/Include/include_i
 
 	section	BattClock,code_p

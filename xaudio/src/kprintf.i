@@ -1,3 +1,16 @@
+;
+; WWW.FPGAArcade.COM
+;
+; REPLAY Retro Gaming Platform
+; No Emulation No Compromise
+;
+; replay.audio - AHI audio device driver for the REPLAY Amiga core
+; Copyright (C) Erik Hemming
+;
+; This software is licensed under LPGLv2.1 ; see LICENSE file
+;
+;
+
 kprintf	MACRO
 	IFD	ENABLE_KPRINTF
 	ifnc	"","\9"
