@@ -126,4 +126,6 @@ AddBoardConfig:
 
 .expansionName:	EXPANSIONNAME
 
-end
+end		
+		cnop	0,4
+
