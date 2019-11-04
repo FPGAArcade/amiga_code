@@ -1222,7 +1222,7 @@ FindFreq:
 .1	subq.l	#4,a0
 .2	move.l	(a0),d0
 	move.l	a0,d1
-	sub.l	#Replay_FreqList,d1
+	subi.l	#Replay_FreqList,d1
 	lsr.l	#2,d1
 	rts
 
@@ -1615,9 +1615,9 @@ AHIsub_Start:
 	; Don't trust BuffSize - compare against the max samples copied
 	move.l	ahiac_MaxBuffSamples(a2),d1
 	move.l	ahiac_Flags(a2),d2
-	and.l	#AHIACF_STEREO,d2
+	andi.l	#AHIACF_STEREO,d2
 	lsr.w	#AHIACB_STEREO,d2
-	add.w	#1,d2
+	addi.w	#1,d2
 	lsl.l	d2,d1
 
 	cmp.l	d1,d0
@@ -1643,7 +1643,7 @@ AHIsub_Start:
 
 	move.l	ahiac_MixFreq(a2),d0
 	move.l	ahiac_PlayerFreq(a2),d1
-	cmp.l	#$10000,d1				; freq can be both 16.16 fixed point or not ?!
+	cmpi.l	#$10000,d1				; freq can be both 16.16 fixed point or not ?!
 	blo.b	.valok
 	clr.w	d1
 	swap	d1
@@ -1655,10 +1655,10 @@ AHIsub_Start:
 ;	move.l	ahiac_MaxBuffSamples(a2),d0
 ;	add.l	d0,d0					; buffer 2x sample speed
 	lsl.l	#2,d0					; multiply by 4 because output is always 16 bit stereo
-	add.l	#15,d0					; need 16byte alignment size
-	and.l	#~15,d0
+	addi.l	#15,d0					; need 16byte alignment size
+	andi.l	#~15,d0
 	move.l	d0,r_OutputBufferSize(a3)
-	add.l	#15,d0					; need 16byte alignment ptr
+	addi.l	#15,d0					; need 16byte alignment ptr
 	move.l	#MEMF_PUBLIC|MEMF_CLEAR|MEMF_REPLAY,d1
 	CALLLIB	_LVOAllocVec
 	move.l	d0,r_OutputBuffer(a3)
@@ -1666,15 +1666,15 @@ AHIsub_Start:
 
 	kprintf	"WARNING : unable to allocate REPLAY memory"
 	move.l	r_OutputBufferSize(a3),d0
-	add.l	#15,d0					; need 16byte alignment ptr
+	addi.l	#15,d0					; need 16byte alignment ptr
 	move.l	#MEMF_PUBLIC|MEMF_CLEAR|MEMF_24BITDMA,d1
 	CALLLIB	_LVOAllocVec
 	move.l	d0,r_OutputBuffer(a3)
 	beq	.error_nomem
 
 .memory_ok:
-	add.l	#15,d0
-	and.l	#~15,d0
+	addi.l	#15,d0
+	andi.l	#~15,d0
 	move.l	d0,r_OutputBufferAligned(a3)
 
 
@@ -1807,7 +1807,7 @@ AHIsub_Update:
 	move.l	ahiac_PlayerFunc(a2),r_PlayerHook(a3)
 
 	move.l	ahiac_PlayerFreq(a2),d0
-	cmp.l	#$10000,d0
+	cmpi.l	#$10000,d0
 	bge.b	.valok
 	swap	d0
 .valok	lsr.l	#8,d0
@@ -2033,7 +2033,7 @@ AHIsub_Stop:
 AHIsub_GetAttr:
 	move.l  d3,-(sp)
 	move.l	d0,d3
-	sub.l	#$80000064,d3
+	subi.l	#$80000064,d3
 	kprintf	"AHIsub_GetAttr(%lx = %ld) arg = %lx; defalt = %lx]",d0,d3,d1,d2
 	move.l 	(sp)+,d3
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -2055,10 +2055,10 @@ AHIsub_GetAttr:
 
 	movem.l	(sp)+,d0-d1
 
-	and.l	#~(AHI_TagBaseR),d0
-	cmp.l	#AHIDB_Data&~(AHI_TagBaseR),d0
+	andi.l	#~(AHI_TagBaseR),d0
+	cmpi.l	#AHIDB_Data&~(AHI_TagBaseR),d0
 	bhi.b	.default
-	sub.w	#100,d0
+	subi.w	#100,d0
 	lsl.w	#1,d0
 	move.w	.jt(pc,d0.w),d0
 	beq.b	.default
@@ -2316,13 +2316,13 @@ ga_Output:
 
 AHIsub_HardwareControl:
 	kprintf	"AHIsub_HardwareControl() [%lx, %lx] / [%lx]",d0,d1,a0
-	cmp.l	#AHIC_OutputVolume,d0
+	cmpi.l	#AHIC_OutputVolume,d0
 	bne.b	.dontsetoutvol
 	move.l	ahiac_DriverData(a2),a1
 	move.l	d1,r_OutputVolume(a1)
 	bra.b	.exit
 .dontsetoutvol
-	cmp.l	#AHIC_OutputVolume_Query,d0
+	cmpi.l	#AHIC_OutputVolume_Query,d0
 	bne.b	.dontgetoutvol
 	move.l	ahiac_DriverData(a2),a1
 	move.l	r_OutputVolume(a1),d0
@@ -2531,7 +2531,7 @@ ec_init:
 
 		move.l	EV_LO(a0),d0
 		sub.l	EV_LO+r_TimerVal(a3),d0
-		add.l	#1<<4,d0
+		addi.l	#1<<4,d0
 		lsr.l	#5,d0
 		move.l	d0,r_TimerCalibrate(a3)
 
@@ -2805,11 +2805,11 @@ CopySamples
 
 	; convert num bytes to num samples (depending on stereo/hifi)
 		move.l	ahiac_Flags(a6),d4
-		and.l	#AHIACF_STEREO,d4
+		andi.l	#AHIACF_STEREO,d4
 		lsr.w	#AHIACB_STEREO,d4
 		move.w	.copyLoops(pc,d4.w*2),d5
 		lea	.copyLoops(pc,d5.w),a5
-		add.w	#1,d4
+		addi.w	#1,d4
 		lsr.l	d4,d3		; input is 16 bit stereo
 
 	; d2 = num out samples
@@ -2855,12 +2855,12 @@ CopySamples
 
 
 		move.l	d7,d6
-		and.l	#$f,d6
-		add.l	#$f,d7		
+		andi.l	#$f,d6
+		addi.l	#$f,d7		
 		lsr.l	#4,d7
 
 		neg	d6
-		and.w	#$f,d6
+		andi.w	#$f,d6
 		jmp	.copyLoopM16(pc,d6.w*4)
 
 .copyLoopM16
@@ -2876,12 +2876,12 @@ CopySamples
 .copyS16	;kprintf	"Innerloop Copy %ld samples",d7
 
 		move.l	d7,d6
-		and.l	#$f,d6
-		add.l	#$f,d7		
+		andi.l	#$f,d6
+		addi.l	#$f,d7		
 		lsr.l	#4,d7
 
 		neg	d6
-		and.w	#$f,d6
+		andi.w	#$f,d6
 		jmp	.copyLoopS16(pc,d6.w*2)
 
 .copyLoopS16
@@ -2945,9 +2945,9 @@ RefillBuffer:
 
 		move.l	ahiac_BuffSamples(a6),d4
 		move.l	ahiac_Flags(a6),d5
-		and.l	#AHIACF_STEREO,d5
+		andi.l	#AHIACF_STEREO,d5
 		lsr.w	#AHIACB_STEREO,d5
-		add.w	#1,d5
+		addi.w	#1,d5
 		lsl.l	d5,d4
 		add.l	d4,a4
 
