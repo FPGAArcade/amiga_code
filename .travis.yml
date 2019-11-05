@@ -18,9 +18,10 @@ addons:
   choco:
     packages:
       - python
+      - sudo
 install:
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then sudo easy_install pip; fi
-  - pip install amitools
+  - sudo pip install amitools
 script:
   - make clean
   - make
