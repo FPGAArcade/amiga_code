@@ -9,7 +9,7 @@ cache:
 addons:
   apt:
     packages:
-      - p7zip
+      - p7zip-full
       - python-pip
 install:
   - sudo pip install amitools
