@@ -15,6 +15,7 @@ addons:
     packages:
       - p7zip
       - python
+    update: true
 install:
   - sudo pip install amitools
 script:
