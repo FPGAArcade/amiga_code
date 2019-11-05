@@ -11,6 +11,10 @@ addons:
     packages:
       - p7zip-full
       - python-pip
+  homebrew:
+    packages:
+      - p7zip
+      - python
 install:
   - sudo pip install amitools
 script:
