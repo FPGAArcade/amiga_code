@@ -15,6 +15,9 @@ addons:
     packages:
       - p7zip
     update: true
+  choco:
+    packages:
+      - python
 install:
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then sudo easy_install pip; fi
   - sudo pip install amitools
