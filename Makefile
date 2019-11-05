@@ -4,22 +4,22 @@ endif
 
 SUBDIRS	:= $(dir $(wildcard */Makefile))
 
-.PHONY: all clean $(SUBDIRS)
+.PHONY: all clean
 
-all: $(SUBDIRS) replay.rom
+all: replay.rom
 	@echo "** $@ done"
 
 clean: $(addprefix clean-,$(SUBDIRS))
 	rm -rf replay.rom
 	@echo "** $@ done"
 
-$(SUBDIRS):
-	$(MAKE) -C $@
+build-%: %
+	$(MAKE) -C $<
 
 clean-%: %
 	$(MAKE) -C $< clean
 
-replay.rom: build_rom.sh
+replay.rom: $(addprefix build-,$(SUBDIRS))
 	./build_rom.sh
 
 include Makefile.build
