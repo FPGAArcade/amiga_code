@@ -1,4 +1,3 @@
-language: minimal
 os:
   - windows
   - linux
@@ -14,9 +13,9 @@ addons:
   homebrew:
     packages:
       - p7zip
-      - python
     update: true
 install:
+  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then sudo easy_install pip; fi
   - sudo pip install amitools
 script:
   - make clean
