@@ -11,6 +11,6 @@ addons:
     packages:
       - python-pip
 install:
-  - pip install amitools
+  - sudo pip install amitools
 script:
   - make
