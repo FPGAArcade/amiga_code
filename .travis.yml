@@ -1,0 +1,16 @@
+language: minimal
+os:
+  - windows
+  - linux
+  - osx
+cache:
+  directories:
+    - .cache
+addons:
+  apt:
+    packages:
+      - python-pip
+install:
+  - pip install amitools
+script:
+  - make
