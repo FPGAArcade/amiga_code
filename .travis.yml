@@ -21,10 +21,8 @@ addons:
       - sudo
 install:
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then sudo easy_install pip; fi
-#  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install python sudo make; fi
-#  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then python -m pip install -U pip; fi
-  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then pacman -Su; fi
-  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then pacman -S mingw-w64-x86_64-python2-pip mingw-w64-x86_64-gcc git make; fi
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install python2 sudo make; fi
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then python -m pip install --upgrade pip; fi
   - pip install amitools
 script:
   - make clean
