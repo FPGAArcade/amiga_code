@@ -1,8 +1,8 @@
 language: c
-os:
-  - windows
-  - linux
-  - osx
+#os:
+#  - windows
+#  - linux
+#  - osx
 cache:
   directories:
     - .cache
@@ -10,7 +10,7 @@ addons:
   apt:
     packages:
       - p7zip-full
-      - python-pip
+      - python3-pip
   homebrew:
     packages:
       - p7zip
@@ -35,7 +35,7 @@ matrix:
       os: windows
       language: shell
       before_install:
-        - choco install python
+        - choco install python --version=3.7.0
         - python -m pip install --upgrade pip
       env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
 install:
