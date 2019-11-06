@@ -21,6 +21,7 @@ addons:
       - sudo
 install:
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then sudo easy_install pip; fi
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install python sudo make; fi
   - sudo pip install amitools
 script:
   - make clean
