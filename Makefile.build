@@ -33,7 +33,7 @@ $(VASM): | $(CACHE_DIR)
 
 $(NDK): | $(CACHE_DIR)
 	cd $(CACHE_DIR) && wget http://www.haage-partner.de/download/AmigaOS/NDK39.lha
-	cd $(CACHE_DIR) && 7z x NDK39.lha
+	cd $(CACHE_DIR) && 7z x -y NDK39.lha NDK_3.9/Include
 	cd $(CACHE_DIR) && rm -rf NDK39.lha
 
 $(SANA2): | $(CACHE_DIR)
