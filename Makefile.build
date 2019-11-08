@@ -6,10 +6,10 @@ SANA2		:= $(CACHE_DIR)/sana2
 AHI			:= $(CACHE_DIR)/ahi
 
 INC_ASM		:= $(NDK)/Include/include_i/
-LVO			:= $(INC_ASM)lvo/
+LVO			:= $(INC_ASM)lvo
 
 SFD			:= $(notdir $(wildcard $(NDK)/Include/sfd/*.sfd))
-LVOS 		:= $(addprefix $(LVO),$(SFD:.sfd=.i))
+LVOS 		:= $(addprefix $(LVO)/,$(SFD:.sfd=.i))
 
 .PHONY: distclean lvos buildenv $(VASM)
 
@@ -60,6 +60,6 @@ $(LVO): | $(NDK)
 lvos: $(LVOS)
 	@echo "** $@ done"
 
-$(LVO)%.i : $(NDK)/Include/sfd/%.sfd
+$(LVO)/%.i : $(NDK)/Include/sfd/%.sfd
 	@mkdir -p $(LVO)
 	perl $(CACHE_DIR)/sfdc/sfdc -q --mode lvo $< -o $@
