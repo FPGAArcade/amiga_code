@@ -24,9 +24,10 @@ jobs:
     - name: "Linux"
       python: 2.7
       before_install:
-        - virtualenv --python=/usr/bin/python2.7 .
-        - source ./bin/activate
-        - find .
+        - mkdir venv
+        - virtualenv --python=/usr/bin/python2.7 venv
+        - source venv/bin/activate
+        - find . -type d -exec ls -al {} \;
     - name: "macOS"
       os: osx
     - name: "Windows"
