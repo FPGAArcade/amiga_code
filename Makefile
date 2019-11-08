@@ -14,10 +14,10 @@ clean: $(addprefix clean-,$(SUBDIRS))
 	@echo "** $@ done"
 
 build-%: %
-	$(MAKE) -C $<
+	$(MAKE) -C $(<:/=)
 
 clean-%: %
-	$(MAKE) -C $< clean
+	$(MAKE) -C $(<:/=) clean
 
 replay.rom: $(addprefix build-,$(SUBDIRS))
 	./build_rom.sh
