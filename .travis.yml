@@ -44,4 +44,4 @@ script:
   - make clean
   - make buildenv   # cached
   - make
-  - crc32 replay.rom
+  - 7z h replay.rom
