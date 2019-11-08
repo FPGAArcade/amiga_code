@@ -34,7 +34,7 @@ jobs:
       os: windows
       before_install:
         - powershell Install-WindowsFeature Net-Framework-Core
-        - choco install make
+        - choco install make --version=3.81.4
         - choco install python-x86_32 --version=2.7.11
         - choco install vcpython27
         - python -m pip install --upgrade pip
@@ -54,5 +54,7 @@ install:
 script:
   - make -v
   - make clean
+  - make -d buildenv
+  - make -d buildenv
   - make
   - find .
