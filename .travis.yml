@@ -1,11 +1,9 @@
 language: c
-#os:
-#  - windows
-#  - linux
-#  - osx
+
 cache:
   directories:
     - .cache
+
 addons:
   apt:
     packages:
@@ -14,9 +12,6 @@ addons:
     packages:
       - p7zip
     update: true
-  choco:
-    packages:
-      - sudo
       
 # python is painful .. 
 jobs:
@@ -25,36 +20,28 @@ jobs:
       python: 2.7
       before_install:
         - mkdir venv
-        - virtualenv --python=/usr/bin/python2.7 venv
+        - virtualenv --python=`which python2.7` venv
         - source venv/bin/activate
-        - find . -type d -exec ls -al {} \;
     - name: "macOS"
       os: osx
     - name: "Windows"
       os: windows
       before_install:
         - powershell Install-WindowsFeature Net-Framework-Core
-        - choco install make --version=3.81.4
+        - choco install make
         - choco install python-x86_32 --version=2.7.11
         - choco install vcpython27
         - python -m pip install --upgrade pip
       env: PATH=/c/tools/python-x86_32:/c/tools/python-x86_32/Scripts:$PATH
 
 install:
-#  - pip3 install --upgrade pip
-#install:
-#  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then sudo easy_install pip; fi
-#  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install python2 sudo make; fi
-#  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then python -m pip install --upgrade pip; fi
   - python --version
   - pip --version
   - pip install --upgrade pip
   - pip install amitools
 
 script:
-  - make -v
   - make clean
-  - make -d buildenv
-  - make -d buildenv
+  - make buildenv   # cached
   - make
-  - find .
+  - crc32 replay.rom
