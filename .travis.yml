@@ -26,12 +26,14 @@ jobs:
       before_install:
         - virtualenv --python=/usr/bin/python2.7 .
         - source ./bin/activate
+        - find .
     - name: "macOS"
       os: osx
     - name: "Windows"
       os: windows
       before_install:
         - powershell Install-WindowsFeature Net-Framework-Core
+        - choco install make
         - choco install python-x86_32 --version=2.7.11
         - choco install vcpython27
         - python -m pip install --upgrade pip
