@@ -11,8 +11,8 @@ addons:
   homebrew:
     packages:
       - p7zip
-#    update: true
-      
+# windows/choco comes with 7zip.install 18.5.0.20180730
+
 # python is painful .. 
 jobs:
   include:
