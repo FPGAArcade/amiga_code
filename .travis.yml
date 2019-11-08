@@ -55,3 +55,4 @@ script:
   - make -v
   - make clean
   - make
+  - find .
