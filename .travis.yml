@@ -10,42 +10,44 @@ addons:
   apt:
     packages:
       - p7zip-full
-      - python3-pip
   homebrew:
     packages:
       - p7zip
     update: true
   choco:
     packages:
-      - python
       - sudo
-
-matrix:
+      
+# python is painful .. 
+jobs:
   include:
     - name: "Linux"
-      os: linux
-      python: 3.7
-      before_install: python3 --version ; pip3 --version
+      python: 2.7
+      before_install:
+        - virtualenv --python=/usr/bin/python2.7 .
+        - source ./bin/activate
     - name: "macOS"
       os: osx
-      osx_image: xcode11
-      language: shell
-      before_install: python3 --version ; pip3 --version ; sw_vers
     - name: "Windows"
       os: windows
-      language: shell
       before_install:
-#        - choco install python --version=3.7.0
-        - choco install python --version=2.7.11
+        - powershell Install-WindowsFeature Net-Framework-Core
+        - choco install python-x86_32 --version=2.7.11
+        - choco install vcpython27
         - python -m pip install --upgrade pip
-      env: PATH=/c/Python27:/c/Python27/Scripts:$PATH
+      env: PATH=/c/tools/python-x86_32:/c/tools/python-x86_32/Scripts:$PATH
+
 install:
 #  - pip3 install --upgrade pip
 #install:
 #  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then sudo easy_install pip; fi
 #  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install python2 sudo make; fi
 #  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then python -m pip install --upgrade pip; fi
+  - python --version
+  - pip --version
+  - pip install --upgrade pip
   - pip install amitools
+
 script:
   - make clean
   - make
