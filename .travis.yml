@@ -1,0 +1,49 @@
+language: c
+
+cache:
+  directories:
+    - .cache
+
+addons:
+  apt:
+    packages:
+      - p7zip-full
+  homebrew:
+    packages:
+      - p7zip
+# windows/choco comes with 7zip.install 18.5.0.20180730
+
+# python is painful .. 
+jobs:
+  include:
+    - name: "Linux"
+      dist: bionic
+      python: 2.7
+      before_install:
+        - mkdir venv
+        - virtualenv --python=`which python2.7` venv
+        - source venv/bin/activate
+    - name: "macOS"
+      os: osx
+      osx_image: xcode11.2
+    - name: "Windows"
+      os: windows
+      before_install:
+        - powershell Install-WindowsFeature Net-Framework-Core
+        - choco install make
+        - choco install python-x86_32 --version=2.7.11
+        - choco install vcpython27
+        - python -m pip install --upgrade pip
+      env: PATH=/c/tools/python-x86_32:/c/tools/python-x86_32/Scripts:$PATH
+
+install:
+  - python --version
+  - pip --version
+  - pip install --upgrade pip
+  - pip install amitools
+
+script:
+  - make clean
+  - make buildenv   # cached
+  - make
+  - 7z h replay.rom

@@ -9,7 +9,7 @@ SUBDIRS	:= $(dir $(wildcard */Makefile))
 all: replay.rom
 	@echo "** $@ done"
 
-clean: $(addprefix clean-,$(SUBDIRS))
+clean: $(addprefix clean-,$(SUBDIRS:/=))
 	rm -rf replay.rom
 	@echo "** $@ done"
 
@@ -19,7 +19,7 @@ build-%: %
 clean-%: %
 	$(MAKE) -C $< clean
 
-replay.rom: $(addprefix build-,$(SUBDIRS))
+replay.rom: $(addprefix build-,$(SUBDIRS:/=))
 	./build_rom.sh
 
 include Makefile.build

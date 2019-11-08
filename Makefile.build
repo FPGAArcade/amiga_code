@@ -1,17 +1,17 @@
 REPO_ROOT	:= $(dir $(lastword $(MAKEFILE_LIST)))
-CACHE_DIR	:= $(REPO_ROOT).cache/
-VASM		:= $(CACHE_DIR)vasmm68k_mot
-NDK			:= $(CACHE_DIR)NDK_3.9/
-SANA2		:= $(CACHE_DIR)sana2
-AHI			:= $(CACHE_DIR)ahi
+CACHE_DIR	:= $(REPO_ROOT).cache
+VASM		:= $(CACHE_DIR)/vasmm68k_mot
+NDK			:= $(CACHE_DIR)/NDK_3.9
+SANA2		:= $(CACHE_DIR)/sana2
+AHI			:= $(CACHE_DIR)/ahi
 
-INC_ASM		:= $(NDK)Include/include_i/
-LVO			:= $(INC_ASM)lvo/
+INC_ASM		:= $(NDK)/Include/include_i/
+LVO			:= $(INC_ASM)lvo
 
-SFD			:= $(notdir $(wildcard $(NDK)Include/sfd/*.sfd))
-LVOS 		:= $(addprefix $(LVO),$(SFD:.sfd=.i))
+SFD			:= $(notdir $(wildcard $(NDK)/Include/sfd/*.sfd))
+LVOS 		:= $(addprefix $(LVO)/,$(SFD:.sfd=.i))
 
-.PHONY: distclean lvos buildenv
+.PHONY: distclean lvos buildenv $(VASM)
 
 buildenv: $(VASM) $(NDK) $(LVO) $(SANA2) $(AHI)
 #	@echo "** $@ done"
@@ -24,16 +24,18 @@ distclean: clean
 $(CACHE_DIR):
 	mkdir -p $(CACHE_DIR)
 
-$(VASM): | $(CACHE_DIR)
+$(VASM): $(VASM).done
+$(VASM).done: | $(CACHE_DIR)
 	cd $(CACHE_DIR) && rm -rf vasm vasm.tar.gz
 	cd $(CACHE_DIR) && wget http://sun.hasenbraten.de/vasm/release/vasm.tar.gz
 	cd $(CACHE_DIR) && tar xzf vasm.tar.gz
 	cd $(CACHE_DIR) && cd vasm && make CPU=m68k SYNTAX=mot -j 4 && cp vasmm68k_mot ..
 	cd $(CACHE_DIR) && rm -rf vasm vasm.tar.gz
+	touch $@
 
 $(NDK): | $(CACHE_DIR)
 	cd $(CACHE_DIR) && wget http://www.haage-partner.de/download/AmigaOS/NDK39.lha
-	cd $(CACHE_DIR) && 7z x NDK39.lha
+	cd $(CACHE_DIR) && 7z x -y NDK39.lha NDK_3.9/Include
 	cd $(CACHE_DIR) && rm -rf NDK39.lha
 
 $(SANA2): | $(CACHE_DIR)
@@ -58,6 +60,6 @@ $(LVO): | $(NDK)
 lvos: $(LVOS)
 	@echo "** $@ done"
 
-$(LVO)%.i : $(NDK)Include/sfd/%.sfd
+$(LVO)/%.i : $(NDK)/Include/sfd/%.sfd
 	@mkdir -p $(LVO)
-	perl $(CACHE_DIR)sfdc/sfdc -q --mode lvo $< -o $@
+	perl $(CACHE_DIR)/sfdc/sfdc -q --mode lvo $< -o $@
