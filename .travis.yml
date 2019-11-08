@@ -11,7 +11,7 @@ addons:
   homebrew:
     packages:
       - p7zip
-    update: true
+#    update: true
       
 # python is painful .. 
 jobs:
@@ -25,6 +25,7 @@ jobs:
         - source venv/bin/activate
     - name: "macOS"
       os: osx
+      osx_image: xcode11.2
     - name: "Windows"
       os: windows
       before_install:
