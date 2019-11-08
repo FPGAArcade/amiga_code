@@ -17,6 +17,7 @@ addons:
 jobs:
   include:
     - name: "Linux"
+      dist: bionic
       python: 2.7
       before_install:
         - mkdir venv
