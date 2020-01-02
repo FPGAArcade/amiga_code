@@ -52,7 +52,8 @@ $(VC).done: | $(CACHE_DIR)
 
 $(VC_CFG): $(REPO_ROOT)vc.cfg | $(CACHE_DIR)
 # when using mingw we need a second regex replace (/c/ -> c:/)
-	cat $< | sed -e 's:%%VBCC%%:$(VBCC):g' | sed -e 's:/\([a-z]\)/:\1\:/:g' > $@
+	cat $< | sed -e 's:%%VBCC%%:$(VBCC):g' | sed -e 's:/\([a-z]\)/:\1\:/:g' > $(CONFIG_DIR)/vc.config
+	cp $(CONFIG_DIR)/vc.config $@
 
 $(VC_M68K): $(VC_M68K).done
 $(VC_M68K).done : | $(CACHE_DIR)
