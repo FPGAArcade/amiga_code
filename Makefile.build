@@ -34,8 +34,11 @@ distclean: clean
 	rm -rf $(CACHE_DIR)
 	@echo "** $@ done"
 
-$(CACHE_DIR):
+$(CACHE_DIR): $(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR)
 	mkdir -p $(CACHE_DIR) $(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR)
+
+$(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR):
+	mkdir -p $(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR)
 
 $(VC): $(VC).done
 $(VC).done: | $(CACHE_DIR)
