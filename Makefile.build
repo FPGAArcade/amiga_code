@@ -60,7 +60,7 @@ $(VC_M68K).done : | $(CACHE_DIR)
 	cd $(CACHE_DIR) && wget --no-check-certificate http://server.owl.de/~frank/vbcc/2019-10-04/vbcc_target_m68k-amigaos.lha
 	cd $(CACHE_DIR) && 7z x vbcc_target_m68k-amigaos.lha
 	cd $(CACHE_DIR) && cd vbcc_target_m68k-amigaos && mv targets/m68k-amigaos ../targets/m68k-amigaos
-	cd $(CACHE_DIR) && rm -rf vbcc_target_m68k-amigaos vbcc_target_m68k-amigaos.lha
+	cd $(CACHE_DIR) && rm -rf vbcc_target_m68k-amigaos*
 	touch $@
 
 $(VLINK): $(VLINK).done
