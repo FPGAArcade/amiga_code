@@ -1,19 +1,16 @@
 #
-# highwayusb.device gcc makefile
+# replayusb.device vbcc makefile
 #
 
-DEB =
-#DEB = -DDEBUG
+DEB = 
+#DEB = -DDEBUG -k
 
-LIB     =   /gg/morphos/lib
+CC		= vc
+LD		= vc
+LCFLAGS	= $(DEB) -O2 -speed -cpu=68020 -fastcall -cpp-comments -I../PoseidonDeveloper/includes -nostdlib
+LDFLAGS	= $(LCFLAGS) -v -nostdlib -lvc
 
-CC_PPC		= ppc-morphos-gcc -I/gg/os-include -I/gg/include -I/include -DPPC -D__MORPHOS__
-LD_PPC		= ppc-morphos-ld
-LCFLAGS_PPC	= $(DEB) -Wall -O3 -mcpu=603e -mmultiple -fomit-frame-pointer -noixemul -nostdlib
-LDFLAGS_PPC	= -v -L$(LIB) -noixemul -nostdlib
-LIBS_PPC	= -lsyscall
-
-TARGET = PPC
+TARGET = 68K
 
 ##############################################################################
 # object files
@@ -38,13 +35,11 @@ GLOBAL	   = declgate.h myregargs.h isp1760.h deneb.h denebusb.h
 
 .PHONY:	all install clean
 
-all: denebdmausb.device.elf denebpiousb.device.elf denebz2usb.device.elf install
-
-install:
-	copy clone denebdmausb.device.elf denebpiousb.device.elf denebz2usb.device.elf DEVS:USBHardware/
+#all: replaydmausb.device replayusb.device replayz2usb.device install
+all: replayusb.device
 
 clean:
-	$(RM) $(OBJS_DMA) $(OBJS_PIO) $(OBJS_Z2) denebdmausb.device.elf denebpiousb.device.elf denebz2usb.device.elf
+	$(RM) $(OBJS_DMA) $(OBJS_PIO) $(OBJS_Z2) replaydmausb.device replayusb.device replayz2usb.device
 
 ##############################################################################
 # dependicies
@@ -52,39 +47,34 @@ clean:
 ##############################################################################
 
 .SUFFIXES:
-.SUFFIXES: .c .oPPC
+.SUFFIXES: .c .o$(TARGET)
 
-%.oPPC:	%.c
-	$(CC_PPC) $(LCFLAGS_PPC) -c $< -o $@
+%.o$(TARGET):	%.c
+	$(CC) $(LCFLAGS) -c $< -o $@
 
 dev_dma.o$(TARGET):             $(SRC)dev.c                     $(GLOBAL) denebusb.device_VERSION.h debug.h
-	$(CC_PPC) $(LCFLAGS_PPC) -c $< -o $@
+	$(CC) $(LCFLAGS) -c $< -o $@
 
 uhwcmd_dma.o$(TARGET):          $(SRC)uhwcmd.c uhwcmd.h $(GLOBAL) debug.h
-	$(CC_PPC) $(LCFLAGS_PPC) -c $< -o $@
+	$(CC) $(LCFLAGS) -c $< -o $@
 
 dev_pio.o$(TARGET):             $(SRC)dev.c                     $(GLOBAL) denebusb.device_VERSION.h debug.h
-	$(CC_PPC) -DNODMA $(LCFLAGS_PPC) -c $< -o $@
+	$(CC) -DNODMA $(LCFLAGS) -c $< -o $@
 
 uhwcmd_pio.o$(TARGET):          $(SRC)uhwcmd.c uhwcmd.h $(GLOBAL) debug.h
-	$(CC_PPC) -DNODMA $(LCFLAGS_PPC) -c $< -o $@
+	$(CC) -DNODMA $(LCFLAGS) -c $< -o $@
 
 dev_z2.o$(TARGET):              $(SRC)dev.c                     $(GLOBAL) denebusb.device_VERSION.h debug.h
-	$(CC_PPC) -DNODMA -DZORRO_II $(LCFLAGS_PPC) -c $< -o $@
+	$(CC) -DNODMA -DZORRO_II $(LCFLAGS) -c $< -o $@
 
 uhwcmd_z2.o$(TARGET):           $(SRC)uhwcmd.c uhwcmd.h $(GLOBAL) debug.h
-	$(CC_PPC) -DNODMA -DZORRO_II $(LCFLAGS_PPC) -c $< -o $@
+	$(CC) -DNODMA -DZORRO_II $(LCFLAGS) -c $< -o $@
 
-denebdmausb.device.elf:      $(OBJS_DMA)
-	$(LD_PPC) $(LDFLAGS_PPC) $^ -o $@ $(LIBS_PPC)
-	ppc-morphos-strip $@
+replaydmausb.device:      $(OBJS_DMA)
+	$(LD) $(LDFLAGS) $^ -o $@ $(LIBS)
 
-denebpiousb.device.elf:      $(OBJS_PIO)
-	$(LD_PPC) $(LDFLAGS_PPC) $^ -o $@ $(LIBS_PPC)
-	ppc-morphos-strip $@
+replayusb.device:      $(OBJS_PIO)
+	$(LD) $(LDFLAGS) $^ -o $@ $(LIBS)
 
-denebz2usb.device.elf:      $(OBJS_Z2)
-	$(LD_PPC) $(LDFLAGS_PPC) $^ -o $@ $(LIBS_PPC)
-	ppc-morphos-strip $@
-
-
+replayz2usb.device:      $(OBJS_Z2)
+	$(LD) $(LDFLAGS) $^ -o $@ $(LIBS)
