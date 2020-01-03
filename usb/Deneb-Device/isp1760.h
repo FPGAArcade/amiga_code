@@ -62,7 +62,8 @@
 #define ISP_EDGEINTCOUNT    0x0d0 /* Edge Interrupt Count (r/w) */
 #define ISP_DMASTART        0x0d1 /* DMA Start Address (w) */
 #define ISP_PWDOWNCTRL      0x0d5 /* Power Down Control (r/w) */
-#define ISP_PORT1CTRL       0x0dd /* Port 1 Control register (r/w) */
+#define ISP_OTGCTRL         0x0dd /* OTG Control register (r/w) */
+#define ISP_OTGSTATUS       0x0de /* OTG Status register (ro, low 16 bits) */
 
 /* ISP_HWMODE_CTRL defines */
 #define IHWCB_GLOBAL_INT_EN  0    /* enable interrupts */
@@ -238,15 +239,38 @@
 
 #define IPDCM_CLOCKOFFCNT   (((1UL<<16)-1)<<IPDCS_CLOCKOFFCNT)
 
-/* ISP_PORT1CTRL defines */
-#define IP1CB_PORT1_POWER_1  3    /* Enable port 1 power */
-#define IP1CB_PORT1_POWER_2  4    /* Enable port 1 power */
-#define IP1CB_PORT1_INIT1    7    /* To clear write bit 23 */
-#define IP1CB_PORT1_INIT2   23    /* Initialize port 1 */
+/* ISP_OTGCTRL defines */
+#define OTGCB_SET            0    /* OTG Control Set (lower word) */
+#define OTGCB_CLR           16    /* OTG Control Clear (upper word) */
+#define OTGCB_OTG_DISABLE   10    /* 0 - OTG functionality enabled, 1 - OTG disabled; pure host or peripheral */
+#define OTGCB_OTG_SE0_EN     9    /* 0 - No SE0 sent on remote connect detection, 1 - SE0 (bus reset) sent on remote connect detection */
+#define OTGCB_BDIS_ACON_EN   8    /* Enables the A-device to connect if the B-device disconnect is detected */
+#define OTGCB_SW_SEL_HC_DC   7    /* 0 - Host controller connected to ATX, 1 - Peripheral controller connected to ATX */
+#define OTGCB_VBUS_CHRG      6    /* Connect VBUS to VCC(I/O) through a resistor */
+#define OTGCB_VBUS_DISCHRG   5    /* Discharge VBUS to ground through a resistor */
+#define OTGCB_VBUS_DRV       4    /* Drive VBUS to 5 V using the charge pump */
+#define OTGCB_SEL_CP_EXT     3    /* 0 - Internal charge pump selected, 1 - External charge pump selected */
+#define OTGCB_DM_PULLDOWN    2    /* DM pull-down: 0 - Disable, 1 - Enable */
+#define OTGCB_DP_PULLDOWN    1    /* DP pull-down: 0 - Disable, 1 - Enable */
+#define OTGCB_DP_PULLUP      0    /* 0 - no pull-up resistor, 1 - internal 1.5k pull-up resistor is present */
 
-#define IP1CF_PORT1_POWER    ((1UL<<IP1CB_PORT1_POWER_1)|(1UL<<IP1CB_PORT1_POWER_2))
-#define IP1CF_PORT1_INIT1    (1UL<<IP1CB_PORT1_INIT1)
-#define IP1CF_PORT1_INIT2    (1UL<<IP1CB_PORT1_INIT2)
+#define OTGCF_OTG_RESERVED	(0xF800UL) /* bits 15 to 11 - reserved for future use */
+#define OTGCF_OTG_CLR_MASK  (~OTGCF_OTG_RESERVED << OTGCB_CLR)
+#define OTGCF_OTG_SET_MASK  (~OTGCF_OTG_RESERVED << OTGCB_SET)
+#define OTGCF_OTG_DISABLE   (1UL<<OTGCB_OTG_DISABLE)
+#define OTGCF_OTG_SE0_EN    (1UL<<OTGCB_OTG_SE0_EN)
+#define OTGCF_BDIS_ACON_EN  (1UL<<OTGCB_BDIS_ACON_EN)
+#define OTGCF_SW_SEL_HC_DC  (1UL<<OTGCB_SW_SEL_HC_DC)
+#define OTGCF_VBUS_CHRG     (1UL<<OTGCB_VBUS_CHRG)
+#define OTGCF_VBUS_DISCHRG  (1UL<<OTGCB_VBUS_DISCHRG)
+#define OTGCF_VBUS_DRV      (1UL<<OTGCB_VBUS_DRV)
+#define OTGCF_SEL_CP_EXT    (1UL<<OTGCB_SEL_CP_EXT)
+#define OTGCF_DM_PULLDOWN   (1UL<<OTGCB_DM_PULLDOWN)
+#define OTGCF_DP_PULLDOWN   (1UL<<OTGCB_DP_PULLDOWN)
+#define OTGCF_DP_PULLUP     (1UL<<OTGCB_DP_PULLUP)
+
+/* OTG Control - Force HOST mode (set) */
+#define OTGCF_FORCE_HOST    (OTGCF_OTG_DISABLE | OTGCF_VBUS_DRV | OTGCF_DM_PULLDOWN | OTGCF_DP_PULLDOWN)
 
 /* EHCI_USBCMD defines */
 #define EHCB_RUNSTOP         0    /* 1=Run, 0=Stop */

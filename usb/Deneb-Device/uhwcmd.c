@@ -139,7 +139,13 @@ WORD uhwHWInit(struct DenebUnit *unit)
     WRITEREG(ISP_HWMODECTRL, IHWCF_DENEB);
     WRITEREG(ISP_DCMODE, 0);
 
-    WRITEREG(ISP_PORT1CTRL, IP1CF_PORT1_POWER|IP1CF_PORT1_INIT2);
+    // Set the force-host-mode bits, and clear the others (w/o touching reserved bits)
+    tmpval = ( (OTGCF_FORCE_HOST << OTGCB_SET) & OTGCF_OTG_SET_MASK) | 
+             ((~OTGCF_FORCE_HOST << OTGCB_CLR) & OTGCF_OTG_CLR_MASK);
+    WRITEREG(ISP_OTGCTRL, tmpval);
+
+    KPRINTF(100, ("OTG Control = %04lx\n", READREG(ISP_OTGCTRL) & 0xffff));
+    KPRINTF(100, ("OTG Status  = %04lx\n", READREG(ISP_OTGSTATUS) & 0xffff));
 
     // clear PTDs (ISO, INT and ATLs) and memory
     for(cnt = MMAP_ISO_PTDS; cnt < MMAP_END; cnt++)
