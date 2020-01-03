@@ -5,8 +5,8 @@
 DEB = 
 #DEB = -DDEBUG -k
 
-CC		= vc
-LD		= vc
+CC		= ../$(VC)
+LD		= ../$(VC)
 LCFLAGS	= $(DEB) -O2 -speed -cpu=68020 -fastcall -cpp-comments -I../PoseidonDeveloper/includes -nostdlib
 LDFLAGS	= $(LCFLAGS) -v -nostdlib -lvc
 
@@ -27,7 +27,7 @@ OBJS_Z2         =       dev_z2.o$(TARGET) \
                         debug.o$(TARGET) \
                         uhwcmd_z2.o$(TARGET)
 
-GLOBAL	   = declgate.h myregargs.h isp1760.h deneb.h denebusb.h
+GLOBAL	   = declgate.h myregargs.h isp1760.h deneb.h denebusb.h Makefile
 
 
 ##############################################################################
@@ -36,7 +36,10 @@ GLOBAL	   = declgate.h myregargs.h isp1760.h deneb.h denebusb.h
 .PHONY:	all install clean
 
 #all: replaydmausb.device replayusb.device replayz2usb.device install
-all: replayusb.device
+all: replayusb.device install
+
+install:
+	cp replayusb.device ..
 
 clean:
 	$(RM) $(OBJS_DMA) $(OBJS_PIO) $(OBJS_Z2) replaydmausb.device replayusb.device replayz2usb.device
