@@ -202,7 +202,7 @@ struct DenebDevice *NATDECLFUNC_3(devInit,
 
 #endif /* __MORPHOS__ */
 
-    KPRINTF(10, ("devInit base: 0x%08lx seglist: 0x%08lx SysBase: 0x%08lx\n",
+    KPRINTF(20, ("devInit base: 0x%08lx seglist: 0x%08lx SysBase: 0x%08lx\n",
                  base, seglist, SysBase));
 
     base->hd_UtilityBase = (struct UtilityBase *) OpenLibrary("utility.library", 39);
@@ -279,13 +279,13 @@ struct DenebDevice *NATDECLFUNC_4(devOpen,
   /*struct ExecBase *SysBase = base->dd_SysBase;
   */
 
-  KPRINTF(10, ("devOpen ioreq: 0x%08lx unit: %ld flags: 0x%08lx base: 0x%08lx\n",
+  KPRINTF(20, ("devOpen ioreq: 0x%08lx unit: %ld flags: 0x%08lx base: 0x%08lx\n",
                ioreq, unit, flags, base));
 
   ++base->hd_Library.lib_OpenCnt;
   base->hd_Library.lib_Flags &= ~LIBF_DELEXP;
 
-  KPRINTF(10, ("devOpen: openCnt = %ld\n", base->hd_Library.lib_OpenCnt));
+  KPRINTF(20, ("devOpen: openCnt = %ld\n", base->hd_Library.lib_OpenCnt));
 
   if(ioreq->iouh_Req.io_Message.mn_Length < sizeof(struct IOUsbHWReqObsolete))
   {
@@ -339,7 +339,7 @@ BPTR NATDECLFUNC_2(devClose,
 
   BPTR ret;
 
-  KPRINTF(10, ("devClose ioreq: 0x%08lx base: 0x%08lx\n", ioreq, base));
+  KPRINTF(20, ("devClose ioreq: 0x%08lx base: 0x%08lx\n", ioreq, base));
 
   ret = NULL;
 
@@ -373,7 +373,7 @@ BPTR i_devExpunge(struct DenebDevice *base)
 {
   BPTR ret;
 
-  KPRINTF(10, ("devExpunge base: 0x%08lx\n", base));
+  KPRINTF(20, ("devExpunge base: 0x%08lx\n", base));
 
   ret = NULL;
 

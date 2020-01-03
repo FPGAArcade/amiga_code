@@ -4,7 +4,7 @@
 /* debug.h - cnet.device by Harry "Piru" Sintonen
 */
 
-#define DB_LEVEL 30
+#define DB_LEVEL 20
 
 //#define DEBUG
 
@@ -22,7 +22,7 @@
    void dumpmem(void *mem, unsigned long int len);
 #else /* !DEBUG */
 
-#define KPRINTF(l, x) ((void) 0)
+#define KPRINTF(l, x) do { } while(0)
 #define DB(x)
 #define BreakPoint
 

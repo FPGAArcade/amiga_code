@@ -299,32 +299,32 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
 
     if((unitnr < 0) || (unitnr > MAXUNITS))
     {
-        KPRINTF(5, ("Unit number %ld out of range!\n", unitnr));
+        KPRINTF(50, ("Unit number %ld out of range!\n", unitnr));
         return NULL;
     }
     if(base->hd_Units[unitnr])
     {
         ioreq->iouh_Req.io_Error = IOERR_UNITBUSY;
-        KPRINTF(5, ("Unit %ld already open!\n", unitnr));
+        KPRINTF(50, ("Unit %ld already open!\n", unitnr));
         return NULL;
     }
 
 
     while(confdev = FindConfigDev(confdev, 5060, 0x10)) /* Replay: 5060, USB/ETH 0x10 */
     {
-        KPRINTF(1, ("Found Replay USB board at %08lx...\n", confdev->cd_BoardAddr));
+        KPRINTF(100, ("Found Replay USB board at %08lx...\n", confdev->cd_BoardAddr));
         if(unitnr == uno++)
             break;
     }
     if(!confdev)
     {
-        KPRINTF(5, ("No board found!\n"));
+        KPRINTF(50, ("No board found!\n"));
         return(NULL);
     }
     if(confdev->cd_Driver)
     {
         ioreq->iouh_Req.io_Error = IOERR_UNITBUSY;
-        KPRINTF(5, ("Other driver uses this board!\n"));
+        KPRINTF(50, ("Other driver uses this board!\n"));
         return(NULL);
     }
     confdev->cd_Driver = (APTR) base;
@@ -380,9 +380,9 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
             uhwDelayMS(5, unit, base);
             WRITEREG(ISP_SWRESET, 0);
             uhwDelayMS(50, unit, base);
-            KPRINTF(1, ("HWMODECTRL = %08lx\n", READREG(ISP_HWMODECTRL)));
+            KPRINTF(100, ("HWMODECTRL = %08lx\n", READREG(ISP_HWMODECTRL)));
             WRITEREG(ISP_HWMODECTRL, IHWCF_DENEB);
-            KPRINTF(1, ("Chip ID = %08lx\n", READREG(ISP_CHIPID)));
+            KPRINTF(100, ("Chip ID = %08lx\n", READREG(ISP_CHIPID)));
             do
             {
                 if(READREG(ISP_CHIPID) != 0x00011761)
@@ -2149,7 +2149,7 @@ void uhwHandleFinishedATLs(struct DenebUnit *unit)
                         else if(ioreq->iouh_Length - ioreq->iouh_Actual < ptd->ptd_BufLen)
                         {
                             ptd->ptd_BufLen = ioreq->iouh_Length - ioreq->iouh_Actual;
-                            KPRINTF(20, ("DMA Last one with %ld bytes\n", ptd->ptd_BufLen));
+                            KPRINTF(10, ("DMA Last one with %ld bytes\n", ptd->ptd_BufLen));
                             ptd->ptd_LastIn = (ioreq->iouh_Actual == ioreq->iouh_Length);
                         }
 #ifndef NODMA
