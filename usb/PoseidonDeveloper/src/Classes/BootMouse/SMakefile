@@ -1,0 +1,59 @@
+#
+# bootmouse.class SAS/C makefile
+#
+
+DEB	=
+#DEB	= def DEBUG
+
+##############################################################################
+
+TARGET		=	68K
+VERSION		=	1
+
+##############################################################################
+
+#INC = INCDIR=sc:include INCDIR=os-include:
+
+CC     = sc $(INC)
+LN     = slink
+
+SLO    =
+LLIBS  = lib:sc.lib lib:amiga.lib lib:debug.lib
+
+LFLAGS = noicons
+
+CFLAGS = $(DEB) def dprintf=kprintf ign=304 opt opttime strmer nostkchk data=fo \
+         nostartup cpu=68020
+
+##############################################################################
+
+all: bootmouse.class install
+
+clean:
+	@delete >nil: $(OBJS) bootmouse.class
+
+##############################################################################
+
+LIB		=
+
+SRC		=
+
+GLOBAL		= declgate.h myregargs.h
+
+bootmouse.class.o$(TARGET): $(SRC)bootmouse.class.c bootmouse.h $(GLOBAL) bootmouse.class_VERSION.h debug.h
+				$(CC)  $< $(CFLAGS) OBJNAME=$@
+
+debug.o$(TARGET):		$(SRC)debug.c			$(GLOBAL)
+				$(CC)  $< $(CFLAGS) OBJNAME=$@
+
+OBJS		=	bootmouse.class.o$(TARGET) \
+			debug.o$(TARGET)
+
+bootmouse.class:  $(OBJS)
+		$(LN) FROM $(OBJS) $(LFLAGS) $(SLO) LIB $(LLIBS) TO $@
+
+install: bootmouse.class
+	copy bootmouse.class SYS:Classes/USB/
+
+BUMP:
+	bumprev2 VERSION=$(VERSION) FILE=$(SRC)bootmouse.class_VERSION TAG=bootmouse ADD="© 2002 by Chris Hodges"

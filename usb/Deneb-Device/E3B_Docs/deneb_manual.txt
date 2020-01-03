@@ -1,0 +1,127 @@
+Deneb prototype manual
+======================
+
+General description
+-------------------
+
+The Deneb prototype card is built around a Xilinx Coolrunner XCR3256XL CPLD.
+It manages all PIO and DMA accesses. Some registers are implemented there, needed for 
+operation of the USB card.
+
+Deneb will autoconfigure as one Zorro III card (containing the ISP1760 USB2 host controller),
+and one Zorro II card (containing the FlashROM). Only Zorro III is supported in this version,
+do not use this card in plain Zorro II backplanes.
+
+Manufacturer ID is 0x0e3b, product ID is 16 decimal for the USB card, and 2 decimal for the
+FlashROM card. 
+
+FlashROM can be deactivated by putting a jumper on the pinheader below the ICS512M clock chip.
+
+Memory layout
+-------------
+
+The ISP1760 is mapped on 32bit addresses, which allows 1:1 mapping of all addresses given in the 
+datasheet.
+
+Registers
+---------
+
+There are four CPLD registers implemented, with one register being shadowed in the
+CPLD. Addresses are relative to the base address of the Deneb USB card.
+
+CPLD_CTRL: offset 0x030200, read / write
+****************************************
+
+Only bits D[31:24] are implemented. 
+
+D31: read only, 0 = DMA not active, 1 = DMA active
+D30: 0 = disable external sync, 1 = enable external sync
+D29: reserved
+D28: 0 = accept regrants, 1 = reject regrants
+D27: 0 = Buster 11 mode, 1 = Buster 9 mode
+D26: 0 = USB normal operation, 1 = hard reset for ISP1760
+D25: 0 = INT disable, 1 = INT enable
+D24: 0 = /INT6, 1 = /INT2
+
+Bit 31 reflects the DMA state machine; DMA is running if this bit is set to 1.
+
+Bit 30 allows to synchronize /BRn to accesses on 0xe80000 - 0xefffff Zorro II space.
+       Deneb will register with Buster if /DREQ of ISP1760 is set. Set this bit to 1
+	   to wait for the /BRn pulse until one Zorro II access to address range 0xe80000 - 0xefffff
+	   is done. Synchronisation is only done for registering, not unregistering.
+	   Useful for debugging, most useful with Buster9 mode.
+	   
+Bit 28 sets regrant mechanism: if set to 0, Deneb will accept regrants from Buster. This will
+       lead to fast DMA, but the resulting bus grant may hold for the whole DMA transmission.
+	   If set to 1, Deneb will unregister with Buster on the reschedule phase (usually after
+	   eight /FCS assertations) and register again after four E7M clock cycles.
+	   With this bit set DMA transactions will be slow.
+	   Useful for debugging.
+
+Bit 27 sets Buster 9 compatibility mode (not severely tested). Best used in conjunction with
+       bit 30 to make sure that /BRn pulse will be covered by /FCS and /CCS asserted.
+	   
+Bit 26 is hard reset for ISP1760. Sequence is 0 - 1 - 0.
+
+Bit 25 switched interrupt generation to Zorro III on and off.
+
+Bit 24 selects the Zorro III interrupt used.
+
+CPLD_REV: offset 0x030204, readonly
+***********************************
+
+Only bits D[31:24] are implemented.
+
+CPLD version can be read here. 
+
+CPLD_DMAADDR: offset 0x010200, write only
+*****************************************
+
+DMA target address for Zorro III DMA is stored here. This register can only be written.
+The full 32bit address range is supported, with A[1:0] being set to zero during DMA cycles
+(only longword transfers). Address is autoincremented after each DMA cycle.
+There is no DMA length counter in Deneb, DMA is only based on /DREQ from ISP1760 and its internal
+DMA engine.
+
+ISP_DMACONFIG: offset 0x0X0330, read / write
+********************************************
+
+This register is a shadow register to ISP1760 one. It will be written at the same time as the 
+ISP1760 one, and will only store the DMA direction bit from the ISP1760.
+
+Hardware initialization
+-----------------------
+
+Recommended setup:
+
+- set reset bit of CPLD_CTRL to one
+- wait 30 us
+- set reset bit of CPLD_CTRL to zero
+- wait 100us
+- write ISP_HWMODE with 0x00000141 (32bit data path, level interrupt, polarity low active).
+- go ahead
+
+DMA machine handling
+--------------------
+
+Recommended setup for DMA start:
+
+- check for running DMA in D31 of CPLD_CTRL
+- write DMASTARTADDR in ISP1760
+- write CPLD_DMAADDR with target address
+- write DMACONFIG in ISP1760 with DMA enable bit set
+- if synchronizing, read one word from FlashROM card in Zorro II I/O space
+- wait for DMA to finish
+
+Caveats
+-------
+
+(Buster) Buster 9 operation is not tested in full depth yet.
+
+(Buster) Buster 11 may fail with two Zorro III bus masters (A4091 or Fastlane).
+         Bus lockup may occur in this constellation (seen with A4091 up to now).
+		 
+(ISP1760) Do not used DMA burst mode. There seems to be a bug in ISP1760 DMA engine, only
+          occuring under certain conditions during DMA burst write. Complete lockup of ISP1760
+		  will be the consequence. DMA single cycle mode is the better choice here.
+
