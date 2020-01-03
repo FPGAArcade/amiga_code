@@ -20,12 +20,12 @@
 
 #ifndef ZORRO_II
 #ifndef NODMA
-#define DEVNAME             "denebdmausb.device"
+#define DEVNAME             "replaydmausb.device"
 #else
 #define DEVNAME             "replayusb.device"
 #endif
 #else
-#define DEVNAME             "denebz2usb.device"
+#define DEVNAME             "replayz2usb.device"
 #endif
 
 struct initstruct
