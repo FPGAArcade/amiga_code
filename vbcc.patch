@@ -1,0 +1,24 @@
+diff -rupN vbcc/datatypes/dtgen.c vbcc.patch/datatypes/dtgen.c
+--- vbcc/datatypes/dtgen.c	2013-04-24 00:45:50 +0200
++++ vbcc.patch/datatypes/dtgen.c	2020-01-01 21:11:42 +0100
+@@ -133,8 +133,7 @@ int askyn(char *def)
+   do{
+     printf("Type y or n [%s]: ",def);
+     fflush(stdout);
+-    fgets(in,sizeof(in),stdin);
+-    if(*in=='\n') strcpy(in,def);
++    strcpy(in,def);
+   }while(*in!='y'&&*in!='n');
+   return *in=='y';
+ }
+@@ -144,9 +143,7 @@ char *asktype(char *def)
+   char *in=mymalloc(128);
+   printf("Enter that type[%s]: ",def);
+   fflush(stdout);
+-  fgets(in,127,stdin);
+-  if(in[strlen(in)-1]=='\n') in[strlen(in)-1]=0;
+-  if(!*in) strcpy(in,def);
++  strcpy(in,def);
+   return in;
+ }
+ 
