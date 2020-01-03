@@ -1,6 +1,19 @@
 REPO_ROOT	:= $(dir $(lastword $(MAKEFILE_LIST)))
 CACHE_DIR	:= $(REPO_ROOT).cache
-VASM		:= $(CACHE_DIR)/vasmm68k_mot
+
+BIN_DIR		:= $(CACHE_DIR)/bin
+CONFIG_DIR	:= $(CACHE_DIR)/config
+TARGET_DIR	:= $(CACHE_DIR)/targets
+
+VASM		:= $(CACHE_DIR)/bin/vasmm68k_mot
+VLINK		:= $(CACHE_DIR)/bin/vlink
+
+VC			:= $(CACHE_DIR)/bin/vc
+VC_CFG		:= $(CONFIG_DIR)/vc.cfg
+VC_M68K		:= $(TARGET_DIR)/m68k-amigaos
+
+VBCC		:= $(abspath $(CACHE_DIR))
+
 NDK			:= $(CACHE_DIR)/NDK_3.9
 SANA2		:= $(CACHE_DIR)/sana2
 AHI			:= $(CACHE_DIR)/ahi
@@ -11,9 +24,9 @@ LVO			:= $(INC_ASM)lvo
 SFD			:= $(notdir $(wildcard $(NDK)/Include/sfd/*.sfd))
 LVOS 		:= $(addprefix $(LVO)/,$(SFD:.sfd=.i))
 
-.PHONY: distclean lvos buildenv $(VASM)
+.PHONY: distclean lvos buildenv $(VASM) $(VLINK) $(VC)
 
-buildenv: $(VASM) $(NDK) $(LVO) $(SANA2) $(AHI)
+buildenv: $(VASM) $(VLINK) $(VC) $(VC_CFG) $(VC_M68K) $(NDK) $(LVO) $(SANA2) $(AHI)
 #	@echo "** $@ done"
 
 
@@ -21,15 +34,51 @@ distclean: clean
 	rm -rf $(CACHE_DIR)
 	@echo "** $@ done"
 
-$(CACHE_DIR):
+$(CACHE_DIR): | $(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR)
 	mkdir -p $(CACHE_DIR)
+
+$(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR):
+	mkdir -p $(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR)
+
+$(VC): $(VC).done
+$(VC).done: | $(CACHE_DIR)
+	cd $(CACHE_DIR) && rm -rf vbcc vbcc*.tar.gz
+	cd $(CACHE_DIR) && wget --no-check-certificate https://server.owl.de/~frank/tags/vbcc0_9g.tar.gz
+	cd $(CACHE_DIR) && tar xzf vbcc0_9g.tar.gz
+	cd $(CACHE_DIR) && patch -p 0 < ../vbcc.patch
+	cd $(CACHE_DIR) && cd vbcc && mkdir bin && make TARGET=m68k -j 4 && cp bin/vc ../bin && cp bin/vbccm68k ../bin
+	cd $(CACHE_DIR) && rm -rf vbcc vbcc*.tar.gz
+	touch $@
+
+$(VC_CFG): $(REPO_ROOT)vc.cfg | $(CACHE_DIR)
+# when using mingw we need a second regex replace (/c/ -> c:/)
+	cat $< | sed -e 's:%%VBCC%%:$(VBCC):g' | sed -e 's:/\([a-z]\)/:\1\:/:g' > $(CONFIG_DIR)/vc.config
+	cp $(CONFIG_DIR)/vc.config $@
+
+$(VC_M68K): $(VC_M68K).done
+$(VC_M68K).done : | $(CACHE_DIR)
+	cd $(CACHE_DIR) && rm -rf vbcc_target_m68k-amigaos*
+	cd $(CACHE_DIR) && wget --no-check-certificate http://server.owl.de/~frank/vbcc/2019-10-04/vbcc_target_m68k-amigaos.lha
+	cd $(CACHE_DIR) && 7z x vbcc_target_m68k-amigaos.lha
+	cd $(CACHE_DIR) && cd vbcc_target_m68k-amigaos && mv targets/m68k-amigaos ../targets/m68k-amigaos
+	cd $(CACHE_DIR) && rm -rf vbcc_target_m68k-amigaos*
+	touch $@
+
+$(VLINK): $(VLINK).done
+$(VLINK).done: | $(CACHE_DIR)
+	cd $(CACHE_DIR) && rm -rf vlink vlink.tar.gz
+	cd $(CACHE_DIR) && wget http://sun.hasenbraten.de/vlink/release/vlink.tar.gz
+	cd $(CACHE_DIR) && tar xzf vlink.tar.gz
+	cd $(CACHE_DIR) && cd vlink && make -j 4 && cp vlink ../bin
+	cd $(CACHE_DIR) && rm -rf vlink vlink.tar.gz
+	touch $@
 
 $(VASM): $(VASM).done
 $(VASM).done: | $(CACHE_DIR)
 	cd $(CACHE_DIR) && rm -rf vasm vasm.tar.gz
 	cd $(CACHE_DIR) && wget http://sun.hasenbraten.de/vasm/release/vasm.tar.gz
 	cd $(CACHE_DIR) && tar xzf vasm.tar.gz
-	cd $(CACHE_DIR) && cd vasm && make CPU=m68k SYNTAX=mot -j 4 && cp vasmm68k_mot ..
+	cd $(CACHE_DIR) && cd vasm && make CPU=m68k SYNTAX=mot -j 4 && cp vasmm68k_mot ../bin
 	cd $(CACHE_DIR) && rm -rf vasm vasm.tar.gz
 	touch $@
 
