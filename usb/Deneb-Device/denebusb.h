@@ -74,9 +74,9 @@
 #define MC030FLUSH
 #endif
 
-//#ifdef __SASC
+#ifdef __SASC
 #define __entry
-//#endif
+#endif
 
 
 /* PTD Transaction node */

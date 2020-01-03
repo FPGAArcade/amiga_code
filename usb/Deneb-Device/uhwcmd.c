@@ -21,23 +21,12 @@ static void NewList( struct MinList *list )
 //        ENDM
 
     list->mlh_Tail = 0;
-    list->mlh_TailPred = list;
-    list->mlh_Head = (struct MinList *)&list->mlh_Tail;
+    list->mlh_TailPred = (struct MinNode *)list;
+    list->mlh_Head = (struct MinNode *)&list->mlh_Tail;
 }
 #endif
 
-static __inline ULONG shuffle_inline(ULONG in)
-{
-    __emit(0xe058); // ror.w #8,d0
-    __emit(0x4840); // swap  d0
-    __emit(0xe058); // ror.w #8,d0
-    return in;
-}
-
-static __asm ULONG shuffle(register __d0 ULONG in)
-{
-    return shuffle_inline(in);
-}
+static ULONG shuffle(__reg("d0") ULONG in)="\tror.w\t#8,d0\t; * shuffle\n\tswap\td0\n\tror.w\t#8,d0";
 
 static void CopyMemShuffle( APTR source, APTR dest, unsigned long size )
 {
@@ -47,7 +36,7 @@ static void CopyMemShuffle( APTR source, APTR dest, unsigned long size )
     while(longs--)
     {
         ULONG v = *src++;
-        v = shuffle_inline(v);  // we assume v got loaded into d0; naughty..
+        v = shuffle(v);
         *dst++ = v;
     }
 }
@@ -84,7 +73,7 @@ BOOL uhwOpenTimer(struct DenebUnit *unit, struct DenebDevice *base)
         unit->hu_MsgPort = NULL;
     }
     KPRINTF(5, ("failed to open timer.device\n"));
-    return(NULL);
+    return(0);
 }
 /* \\\ */
 
@@ -105,7 +94,7 @@ void uhwCloseTimer(struct DenebUnit *unit, struct DenebDevice *base)
         if(unit->hu_TimerReq)
         {
             KPRINTF(1, ("closing timer.device\n"));
-            CloseDevice(unit->hu_TimerReq);
+            CloseDevice((struct IORequest *) unit->hu_TimerReq);
             DeleteIORequest(unit->hu_TimerReq);
             unit->hu_TimerReq = NULL;
         }
@@ -451,7 +440,7 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
                 unit->hu_NakTimeoutMsgPort.mp_Node.ln_Type = NT_MSGPORT;
                 unit->hu_NakTimeoutMsgPort.mp_Flags = PA_SOFTINT;
                 unit->hu_NakTimeoutMsgPort.mp_SigTask = &unit->hu_NakTimeoutInt;
-                NewList(&unit->hu_NakTimeoutMsgPort.mp_MsgList);
+                NewList((struct MinList *)&unit->hu_NakTimeoutMsgPort.mp_MsgList);
                 Cause(&unit->hu_NakTimeoutInt);
 
                 KPRINTF(1, ("Adding Interrupt Handler!\n"));
@@ -468,7 +457,7 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
                 nt->tc_SPLower = unit->hu_DMATaskStack;
                 nt->tc_SPUpper = nt->tc_SPReg = (APTR) ((ULONG) nt->tc_SPLower + 512);
                 nt->tc_UserData = unit;
-                NewList(&nt->tc_MemEntry);
+                NewList((struct MinList *)&nt->tc_MemEntry);
 #ifndef __MORPHOS__
                 AddTask(nt, (APTR) uhwDMATask, NULL);
 #else
@@ -476,7 +465,7 @@ struct Unit *Open_Unit(struct IOUsbHWReq *ioreq,
 #endif
                 //uhwTestStuff(ioreq, unit, base);
                 MC030UNFREEZE;
-                return(unit);
+                return(struct Unit *)(unit);
             } else {
                 ioreq->iouh_Req.io_Error = IOERR_SELFTEST;
                 KPRINTF(5, ("Hardware failure, Magic number failed!"));
@@ -509,7 +498,7 @@ void Close_Unit(struct DenebDevice *base,
     WRITEREG(ISP_HWMODECTRL, IHWCF_DENEB);
     unit->hu_NakTimeoutMsgPort.mp_Flags = PA_IGNORE;
     unit->hu_NakTimeoutInt.is_Node.ln_Type = NT_SOFTINT;
-    AbortIO(&unit->hu_NakTimeoutReq);
+    AbortIO((struct IORequest *)&unit->hu_NakTimeoutReq);
     uhwDelayMS(10, unit, base);
     RemIntServer(INTB_EXTER, &unit->hu_Level6Int);
     Signal(&unit->hu_DMATask, SIGBREAKF_CTRL_C);
@@ -818,7 +807,7 @@ WORD cmdControlXFer(struct IOUsbHWReq *ioreq,
     ioreq->iouh_Actual = 0;
 
     Disable();
-    AddTail((struct List *) &unit->hu_CtrlXFerQueue, ioreq);
+    AddTail((struct List *) &unit->hu_CtrlXFerQueue, (struct Node*)ioreq);
     Enable();
     Cause(&unit->hu_SoftInt);
 
@@ -860,7 +849,7 @@ WORD cmdBulkXFer(struct IOUsbHWReq *ioreq,
     ioreq->iouh_Actual = 0;
 
     Disable();
-    AddTail((struct List *) &unit->hu_BulkXFerQueue, ioreq);
+    AddTail((struct List *) &unit->hu_BulkXFerQueue, (struct Node*)ioreq);
     Enable();
     Cause(&unit->hu_SoftInt);
 
@@ -903,7 +892,7 @@ WORD cmdIsoXFer(struct IOUsbHWReq *ioreq,
     ioreq->iouh_Actual = 0;
   
     Disable();
-    AddTail((struct List *) &unit->hu_IsoXFerQueue, ioreq);
+    AddTail((struct List *) &unit->hu_IsoXFerQueue, (struct Node*)ioreq);
     Enable();
     Cause(&unit->hu_SoftInt);
 
@@ -943,7 +932,7 @@ WORD cmdIntXFer(struct IOUsbHWReq *ioreq,
     ioreq->iouh_Actual = 0;
 
     Disable();
-    AddTail((struct List *) &unit->hu_IntXFerQueue, ioreq);
+    AddTail((struct List *) &unit->hu_IntXFerQueue, (struct Node*)ioreq);
     Enable();
     Cause(&unit->hu_SoftInt);
 
@@ -988,9 +977,9 @@ WORD cmdFlush(struct IOUsbHWReq *ioreq,
         pioreq = (struct IOUsbHWReq *) lists[cnt]->mlh_Head;
         while(((struct Node *) pioreq)->ln_Succ)
         {
-            Remove(pioreq);
+            Remove((struct Node *)pioreq);
             pioreq->iouh_Req.io_Error = IOERR_ABORTED;
-            ReplyMsg(pioreq);
+            ReplyMsg((struct Message *)pioreq);
             pioreq = (struct IOUsbHWReq *) lists[cnt]->mlh_Head;
         }
     }
@@ -1808,7 +1797,7 @@ BOOL cmdAbortIO(struct IOUsbHWReq *ioreq,
     }
     if(foundit)
     {
-        Remove(ioreq);
+        Remove((struct Node *)ioreq);
     } else {
         KPRINTF(10, ("not found in waiting queues!"));
         // scan ATL PTDs
@@ -3872,7 +3861,7 @@ void uhwScheduleCtrlPTDs(struct DenebUnit *unit)
 
         // *** no going back after this point ***
 
-        Remove(ioreq);
+        Remove((struct Node *)ioreq);
 
         ptd->ptd_Type = PTDT_SETUP;
         ptd->ptd_IOReq = ioreq;
@@ -4033,7 +4022,7 @@ void uhwScheduleIntPTDs(struct DenebUnit *unit)
 
         // *** no going back after this point ***
 
-        Remove(ioreq);
+        Remove((struct Node *)ioreq);
 
         ptd->ptd_IOReq = ioreq;
 
@@ -4368,7 +4357,7 @@ void uhwScheduleBulkPTDs(struct DenebUnit *unit)
 
         // *** no going back after this point ***
 
-        Remove(ioreq);
+        Remove((struct Node *)ioreq);
 
         ptd->ptd_IOReq = ioreq;
 
@@ -4601,7 +4590,7 @@ void uhwScheduleIsoPTDs(struct DenebUnit *unit)
 
         // *** no going back after this point ***
 
-        Remove(ioreq);
+        Remove((struct Node *)ioreq);
 
         ptd->ptd_IOReq = ioreq;
 
@@ -4960,7 +4949,7 @@ void DECLFUNC_1(uhwNakTimeoutInt, a1, struct DenebUnit *, unit)
     Enable();
 
     unit->hu_NakTimeoutReq.tr_time.tv_micro = unit->hu_ATLActive ? (100*1000) : (250*1000);
-    SendIO(&unit->hu_NakTimeoutReq);
+    SendIO((struct IORequest *)&unit->hu_NakTimeoutReq);
 }
 /* \\\ */
 
