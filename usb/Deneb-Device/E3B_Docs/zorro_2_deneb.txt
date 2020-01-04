@@ -1,0 +1,44 @@
+Zorro II documentation (DRAFT)
+==============================
+
+The Deneb configures in Zorro II mode as two cards:
+
+  64kB I/O  3643.18   USB card
+  64kB I/O  3643.19   FlashROM card
+  
+The FlashROM card will also appear in Zorro III mode.
+
+Memory layout (USB card)
+========================
+
+All addresses relative to board base address.
+
+Start    End      Access      Endianess     Description
+
+0x0000 - 0x01fc   32bit only  not swapped   ISP1760 registers
+0x0200 - 0x02fc   ----------  -----------   reserved
+0x02fe            16bit only  not swapped   control register (r/w)
+0x0300 - 0x03fc   32bit only  not swapped   ISP1760 registers
+0x0400 - 0x0ffc   32bit only  not swapped   ISP1760 ISO / INT / ATL region
+0x1000 - 0xfffc   32bit only  byte swapped  ISP1760 memory
+
+The first 16kB of the USB card will be mapped to bank 0, the second part (48kB) 
+is mapped to bank 1.
+
+The Deneb's internal endianess logic will take care of swapping bytes from and to
+Zorro II bus. Only 32bit accesses are allowed for these regions, as the mapping
+logic may deliver wrong data when being accessed in 16bit mode.
+
+Control register
+================
+
+ Bit    Description
+[15-3]  reserved
+  2     0 => normal operation, 1 => ISP reset
+  1     0 => no ints, 1 => ints enabled
+  0     0 => INT6, 1 => INT2
+
+Reset is done by writing 0-1-0 into control register bit 2.
+
+Configure the ISP1760 as in Zorro III mode (0x0304 -> 0x00000141).  
+  
