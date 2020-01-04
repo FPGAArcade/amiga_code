@@ -18,6 +18,7 @@ DRIVER_FILES := $(wildcard Deneb-Device/*)
 
 replayusb.device: Makefile $(DRIVER_FILES) | buildenv
 	$(MAKE) -C Deneb-Device
+	cp Deneb-Device/replayusb.device .
 
 clean:
 	$(MAKE) -C Deneb-Device clean

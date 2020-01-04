@@ -36,7 +36,7 @@ GLOBAL	   = declgate.h myregargs.h isp1760.h deneb.h denebusb.h Makefile
 .PHONY:	all install clean
 
 #all: replaydmausb.device replayusb.device replayz2usb.device install
-all: replayusb.device install
+all: replayusb.device
 
 install:
 	cp replayusb.device ..
