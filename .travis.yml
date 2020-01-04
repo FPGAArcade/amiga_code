@@ -26,15 +26,15 @@ jobs:
     - name: "macOS"
       os: osx
       osx_image: xcode11.2
-    - name: "Windows"
-      os: windows
-      before_install:
-        - powershell Install-WindowsFeature Net-Framework-Core
-        - choco install make
-        - choco install python-x86_32 --version=2.7.11
-        - choco install vcpython27
-        - python -m pip install --upgrade pip
-      env: PATH=/c/tools/python-x86_32:/c/tools/python-x86_32/Scripts:$PATH
+#    - name: "Windows"
+#      os: windows
+#      before_install:
+#        - powershell Install-WindowsFeature Net-Framework-Core
+#        - choco install make
+#        - choco install python-x86_32 --version=2.7.11
+#        - choco install vcpython27
+#        - python -m pip install --upgrade pip
+#      env: PATH=/c/tools/python-x86_32:/c/tools/python-x86_32/Scripts:$PATH
 
 install:
   - python --version
