@@ -15,19 +15,16 @@
 
 ; vasmm68k_mot -Fhunkexe -kick1hunks addmem.asm -L addmem.list -nosym -m68000 -o AddReplayMem -I ~/Documents/amiga-root/SYS/Code/NDK_3.9/Include/include_i
 
+;ENABLE_KPRINTF
+
+	include	exec/memory.i
 	include	exec/nodes.i
 	include	exec/resident.i
+	include	exec/exec.i
+	include	lvo/exec_lib.i
+	include kprintf.i
 
-_LVOAllocMem    equ	-198
-_LVOFreeMem     equ	-210
-_LVOTypeOfMem   equ	-534
-_LVOAddMemList  equ	-618
-_LVOOpenLibrary equ	-552
-_LVOCloseLibrary equ	-414
 _LVOPutStr      equ	-948
-MEMF_PUBLIC     equ    (1<<0)
-MEMF_CHIP       equ    (1<<1)
-MEMF_FAST       equ    (1<<2)
 MEMF_REPLAY     equ    (1<<14)
 
 	jmp	S
@@ -35,29 +32,36 @@ MEMF_REPLAY     equ    (1<<14)
 	rts
 
 VERSION	= 1
-REVISION= 5
+REVISION= 6
 
-	dc.b	0,'$VER: AddReplayMem 1.5 (20.9.2018) Replay XRAM',0
-VERSTRING	dc.b	'AddReplayMem 1.5 (20.9.2018) Replay XRAM',13,10,0
+	dc.b	0,'$VER: AddReplayMem 1.6 (14.2.2020) Replay XRAM',0
 	even
-	
+VERSTRING	dc.b	'AddReplayMem 1.6 (14.2.2020) Replay XRAM',13,10,0
+	even
+
+	cnop	0,4
 romtag:	dc.w	RTC_MATCHWORD
 	dc.l	romtag
 	dc.l	end
-	dc.b	RTF_COLDSTART
+	dc.b	RTF_SINGLETASK
 	dc.b	VERSION
 	dc.b	NT_UNKNOWN
-	dc.b	0
+	dc.b	108
 	dc.l	tagname
 	dc.l	VERSTRING
 	dc.l	S
 
 tagname:	dc.b	'AddReplayMem',0
 	even
-	
+
+
+	cnop	0,4
 S:
+	kprintf	"INIT: %s",#VERSTRING
+
 	movem.l	d2-d6/a2-a6,-(sp)
 
+; 1.6 - Fix memory trashing when probing; Change to RTF_SINGLETASK (before Exec); Add logging
 ; 1.5 - Make ROMable
 ; 1.4 - Add console logging; Fix building with vasm.
 ; 1.3 - Label the memory region as REPLAY memory (unused bit 14)
@@ -124,26 +128,52 @@ S:
 
 	neg.b	d4
 	cmp.b	#32,d4
-	bne.b	.quit_24bit
+	bne	.quit_24bit
 
 	; Probe the memory to see if it's there
+	jsr	_LVODisable(a6)
+
 	lea	$01000000,a0
 	moveq.l	#$30-1,d7
-.probe	movem.l	d0-d3,(a0)
+.probe
+	; save memory contents
+	movem.l	(a0),d4/d5/a4/a5
+	movem.l	d4/d5/a4/a5,-(sp)
+	movem.l	$4000(a0),d4/d5/a4/a5
+	movem.l	d4/d5/a4/a5,-(sp)
+
+	; write known values
+	movem.l	d0-d3,(a0)
+
+	; write noise at 16KB ahead
 	lea	$4000(a0),a1
 	movem.l	$4.w,a2-a5
 	movem.l	a2-a5,(a1)
+
+	; make sure the original write is valid
 	move.l	a0,a1
 	cmp.l	(a1)+,d0
-	bne.b	.quit_probing
+	bne.b	.probe_failed
 	cmp.l	(a1)+,d1
-	bne.b	.quit_probing
+	bne.b	.probe_failed
 	cmp.l	(a1)+,d2
-	bne.b	.quit_probing
+	bne.b	.probe_failed
 	cmp.l	(a1)+,d3
-	bne.b	.quit_probing
+
+.probe_failed
+	; restore memory contents
+	movem.l	(sp)+,d4/d5/a4/a5
+	movem.l	d4/d5/a4/a5,$4000(a0)
+	movem.l	(sp)+,d4/d5/a4/a5
+	movem.l	d4/d5/a4/a5,(a0)
+
 	add.l	#$00100000,a0
-	dbf	d7,.probe
+	dbne	d7,.probe
+
+	jsr	_LVOEnable(a6)
+
+	tst.b	d7
+	bpl.b	.quit_probing
 
 	moveq.l	#name_end-name,d0
 	moveq.l	#0,d1
@@ -175,7 +205,9 @@ S:
 		bra.b	.quit
 .quit_alloc	lea	alloc_failed(pc),a5
 
-.quit	lea	dos(pc),a1
+.quit
+	kprintf	"      %s",a5
+	lea	dos(pc),a1
 	moveq.l	#36,d0		; putstr is kick 2.x+
 	movea.l	$4.w,a6
 	jsr	_LVOOpenLibrary(a6)
