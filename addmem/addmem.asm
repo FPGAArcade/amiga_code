@@ -34,9 +34,9 @@ MEMF_REPLAY     equ    (1<<14)
 VERSION	= 1
 REVISION= 6
 
-	dc.b	0,'$VER: AddReplayMem 1.6 (14.2.2020) Replay XRAM',0
+	dc.b	0,'$VER: AddReplayMem 1.7 (19.2.2020) Replay XRAM',0
 	even
-VERSTRING	dc.b	'AddReplayMem 1.6 (14.2.2020) Replay XRAM',13,10,0
+VERSTRING	dc.b	'AddReplayMem 1.7 (19.2.2020) Replay XRAM',13,10,0
 	even
 
 	cnop	0,4
@@ -54,6 +54,8 @@ romtag:	dc.w	RTC_MATCHWORD
 tagname:	dc.b	'AddReplayMem',0
 	even
 
+MIN_ROM_SIZE = (4*1024)
+MAX_ROM_SIZE = (1024*1024)
 
 	cnop	0,4
 S:
@@ -61,6 +63,7 @@ S:
 
 	movem.l	d2-d6/a2-a6,-(sp)
 
+; 1.7 - Add a dummy memory node for the $00F0.0000 replay.rom memory region (to prevent mmu.library cache-inhibit state)
 ; 1.6 - Fix memory trashing when probing; Change to RTF_SINGLETASK (before Exec); Add logging
 ; 1.5 - Make ROMable
 ; 1.4 - Add console logging; Fix building with vasm.
@@ -69,8 +72,22 @@ S:
 ; 1.1 - Detect 24 bit (000/010/EC020) memory space (by detecting mirroring of CHIP above the 16M barrier)
 ; 1.0 - Probe memory to make sure it's actually present
 
-	; Check if already registered
+	; Check if ROM is mapped as RAM
 	movea.l	$4.w,a6
+	lea	$00f01000,a1
+	jsr	_LVOTypeOfMem(a6)
+	tst.l	d0
+	bne	.already_mapped
+
+	bsr	MapROMasRAM
+	tst.l	d0
+	bmi	.quit_checksum
+
+	kprintf	<"      rom is %ld bytes",10>,d0
+
+.already_mapped
+
+	; Check if already registered
 	lea	$01001000,a1
 	jsr	_LVOTypeOfMem(a6)
 	tst.l	d0
@@ -197,6 +214,8 @@ S:
 	lea	memory_added(pc),a5
 	bra.b	.quit
 
+.quit_checksum	lea	checksum_failed(pc),a5
+		bra.b	.quit
 .quit_present	lea	already_there(pc),a5
 		bra.b	.quit
 .quit_24bit	lea	cpu_is_24bit(pc),a5
@@ -229,12 +248,94 @@ S:
 
 name		dc.b 'replay xram memory',0
 name_end
+romname		dc.b 'replay.rom memory',0
+romname_end
 dos		dc.b 'dos.library',0
+checksum_failed	dc.b 'rom checksum failed',10,0
 already_there	dc.b 'memory is already available',10,0
 cpu_is_24bit	dc.b 'cpu uses a 24bit address bus (68000/010/EC020)',10,0
 probing_failed	dc.b 'memory probing failed',10,0
 alloc_failed	dc.b 'memory allocation failed',10,0
 memory_added	dc.b 'memory region added',10,0
 
+	cnop	0,4
+
+MapROMasRAM:
+	; Find replay ROM size
+	lea	$00f00000,a0
+	move.l	#MIN_ROM_SIZE,d0
+	move.l	#MAX_ROM_SIZE,d1
+
+	; a0.l = ROM start
+	; d0.l = start ROM size (16 bytes min)
+	; d1.l = end ROM size (1MB max)
+
+	move.l	d0,d7
+	moveq	#0,d5
+	moveq	#0,d6
+.cont	lsr.l	#4,d7
+	bra.b	.start
+.loop:	rept 4
+	add.l	(a0)+,d5
+	addx.l	d6,d5
+	endr
+.start	dbf	d7,.loop
+
+	not.l	d5
+	beq.b	.sumok
+	not.l	d5
+
+	move.l	d0,d7
+	add.l	d0,d0
+	cmp.l	d1,d0
+	bne.b	.cont
+.error	moveq.l	#-1,d0
+	rts
+.sumok	move.l	d0,d2
+
+	; Allocate a dummy memlist header + memlist name + 'free'list
+	moveq.l	#MH_SIZE+MC_SIZE+(romname_end-romname),d0
+	moveq.l	#0,d1
+	jsr	_LVOAllocMem(a6)
+	tst.l	d0
+	beq	.error
+
+	; Fill out the memlist header based on the ROM details
+	move.l	d0,a0
+	clr.l	LN_SUCC(a0)
+	clr.l	LN_PRED(a0)
+	move.b	#NT_MEMORY,LN_TYPE(a0)
+	move.b	#-128,LN_PRI(a0)
+	move.w	#0,MH_ATTRIBUTES(a0)
+
+	; This is the 'empty' freelist node
+	lea	MH_SIZE(a0),a1
+	move.l	a1,MH_FIRST(a0)
+	clr.l	(a1)+		; MC_NEXT
+	clr.l	(a1)+		; MC_BYTES
+
+	; Set the ROM memory name
+	move.l  a1,LN_NAME(a0)
+	lea	romname(pc),a2
+	moveq.l	#romname_end-romname,d1
+.name	move.b	(a2)+,(a1)+
+	dbf	d1,.name
+
+	; Set the memlist lower and upper bound (matching ROM)
+	lea	$00f00000,a1
+	move.l	a1,MH_LOWER(a0)
+	move.l	a1,MH_UPPER(a0)
+	add.l	d2,MH_UPPER(a0)
+	clr.l	MH_FREE(a0)
+
+	; Use the *private* execbase member 'MemList' to enqueue the ROM memlist
+	move.l	a0,a1
+	lea.l	MemList(a6),a0
+	jsr	_LVOForbid(a6)
+	jsr	_LVOEnqueue(a6)
+	jsr	_LVOPermit(a6)
+
+	move.l	d2,d0	; ROM size
+	rts
 end
 
