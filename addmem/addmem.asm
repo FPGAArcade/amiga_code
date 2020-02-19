@@ -32,7 +32,6 @@ MEMF_REPLAY     equ    (1<<14)
 	rts
 
 VERSION	= 1
-REVISION= 6
 
 	dc.b	0,'$VER: AddReplayMem 1.7 (19.2.2020) Replay XRAM',0
 	even
