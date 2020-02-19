@@ -1,7 +1,7 @@
-VASM_FLAGS	:= -quiet -Fhunkexe -kick1hunks -nosym -m68000
+VASM_FLAGS	:= -quiet -Fhunkexe -kick1hunks -nosym -m68000 -no-opt
 
-TARGET		:= AddReplayMem
-SOURCE		:= addmem.asm
+TARGET		:= PoseidonLoader
+SOURCE		:= loader.s
 INCLUDES	:= kprintf.i
 LISTFILE	:= $(addsuffix .txt,$(basename $(TARGET)))
 
