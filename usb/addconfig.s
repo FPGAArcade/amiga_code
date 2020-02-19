@@ -13,6 +13,8 @@
 
 ;./vasmm68k_mot  -Fhunkexe addconfig.s -o usb_eth.autoconfig -I ~/Documents/amiga-root/SYS/Code/NDK_3.9/Include/include_i
 
+;ENABLE_KPRINTF
+
 	incdir	include:
 	incdir	sys:code/ndk_3.9/include/include_i/
 
@@ -23,6 +25,8 @@
 
 	include	lvo/exec_lib.i
 	include	lvo/expansion_lib.i
+
+	include kprintf.i
 
 	moveq.l	#-1,d0
 	rts
@@ -39,7 +43,7 @@ romtag:	dc.w	RTC_MATCHWORD
 	dc.b	RTF_COLDSTART
 	dc.b	VERSION
 	dc.b	NT_UNKNOWN
-	dc.b	0
+	dc.b	100
 	dc.l	name
 	dc.l	VERSTRING
 	dc.l	S
@@ -48,6 +52,7 @@ name:	dc.b	'usb_eth.autoconfig',0
 	even
 	
 S:
+	kprintf	"INIT: %s",#VERSTRING
 	bsr.b	AddBoardConfig
 	moveq.l	#0,d0
 	rts
