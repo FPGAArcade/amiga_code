@@ -8,9 +8,7 @@ addons:
   apt:
     packages:
       - p7zip-full
-  homebrew:
-    packages:
-      - p7zip
+# osx handles this in 'before_install'
 # windows/choco comes with 7zip.install 18.5.0.20180730
 
 # python is painful .. 
@@ -25,7 +23,7 @@ jobs:
         - source venv/bin/activate
     - name: "macOS"
       os: osx
-      osx_image: xcode11.2
+      osx_image: xcode11.3
 #    - name: "Windows"
 #      os: windows
 #      before_install:
@@ -35,6 +33,9 @@ jobs:
 #        - choco install vcpython27
 #        - python -m pip install --upgrade pip
 #      env: PATH=/c/tools/python-x86_32:/c/tools/python-x86_32/Scripts:$PATH
+
+before_install:
+  if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew install p7zip ; fi
 
 install:
   - python --version
