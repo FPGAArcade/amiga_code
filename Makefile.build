@@ -17,6 +17,7 @@ VBCC		:= $(abspath $(CACHE_DIR))
 NDK			:= $(CACHE_DIR)/NDK_3.9
 SANA2		:= $(CACHE_DIR)/sana2
 AHI			:= $(CACHE_DIR)/ahi
+AMITCP		:= $(CACHE_DIR)/AmiTCP-SDK-4.3
 
 INC_ASM		:= $(NDK)/Include/include_i/
 LVO			:= $(INC_ASM)lvo
@@ -26,7 +27,7 @@ LVOS 		:= $(addprefix $(LVO)/,$(SFD:.sfd=.i))
 
 .PHONY: distclean lvos buildenv $(VASM) $(VLINK) $(VC)
 
-buildenv: $(VASM) $(VLINK) $(VC) $(VC_CFG) $(VC_M68K) $(NDK) $(LVO) $(SANA2) $(AHI)
+buildenv: $(VASM) $(VLINK) $(VC) $(VC_CFG) $(VC_M68K) $(NDK) $(LVO) $(SANA2) $(AHI) $(AMITCP)
 #	@echo "** $@ done"
 
 
@@ -98,6 +99,11 @@ $(AHI): | $(CACHE_DIR)
 	cd $(CACHE_DIR) && mv m68k-amigaos-ahi/Developer/Include/Asm ahi
 	cd $(CACHE_DIR) && rm -rf m68k-amigaos-ahi/Developer/Include
 	cd $(CACHE_DIR) && rm -rf m68k-amigaos-ahidev.lha
+
+$(AMITCP): | $(CACHE_DIR)
+	cd $(CACHE_DIR) && wget http://aminet.net/comm/tcp/AmiTCP-SDK-4.3.lha
+	cd $(CACHE_DIR) && 7z x -y AmiTCP-SDK-4.3.lha AmiTCP-SDK-4.3
+	cd $(CACHE_DIR) && rm -rf AmiTCP-SDK-4.3.lha
 
 $(LVO): | $(NDK)
 	cd $(CACHE_DIR) && wget http://aminet.net/dev/gcc/sfdc.lha
