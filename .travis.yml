@@ -35,3 +35,4 @@ script:
   - make release
   - unzip -lv *.zip
   - 7z h *.rom
+  - git status -s
