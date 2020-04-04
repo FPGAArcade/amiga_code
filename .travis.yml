@@ -36,3 +36,15 @@ script:
   - unzip -lv *.zip
   - 7z h *.rom
   - git status -s
+
+deploy:
+  provider: releases
+  api_key:
+    secure: GiwzmnWvBw2NQJ4iDQpy4BxRk1Auxj8MmmiUrBtrLUWcQcezy8AS+eCZXFx1dthykuf5jcHvLk3AX9pgK1iCZcuIFJr3Dtl7R/36hDHWgHAeZJhiZcPPAVDH87RtzX5hlbQys8qVo2GL/yrY4r96gG1Oktnm9PObsayvdNqQWHcdPE+eW/mk2uoONSZIkg/GWbOFfqfgA8l1HFHZpQPn0bQdYJjzW10o1lWd3U/EODWghVqriQkERHdZBAnk0518rtJpN2nsQxbBa7n8GyL9MTT3A/STleALWIOnctbGTyvIFEgBVmYJ6RbHnRV8PeQh7lC6opIseYZEeApMglEJGQKpInyHLhQuZLX+lpyUQ4wSU6V9THjJE4K8elYNF5mVG3UiwXM5nC17ytoaLn5r+QQTv1xg+JN9Gz0lyC1dOgbGRduurzH2IOpC1SBlU2WJb9ehtLBRJREpUj+yLADuKbhPbUwR3qaSxmFBeAsPkS08g8G555+1GlE/wDXrbl8sV67eMwv98IDOVQgoJFMzk6ftZWN6qCgoqeghSJOhLTZW8UIXwsOPuDvPMhpmazvl55PA7UeIUDWA7hgAoR99beWHjHzQ/xwA1+ZLDK2ekThFgJy6bfFHX4TYPam4MkQewzYqyIBVZvuawF9L3oB4pR1+7gih/n4yRXSaXhA6z9A=
+  file_glob: true
+  file: "*.zip"
+  skip_cleanup: true
+  on:
+    repo: FPGAArcade/amiga_code
+    tags: true
+    condition: $TRAVIS_OS_NAME = "linux"
