@@ -4,7 +4,10 @@ endif
 
 SUBDIRS	:= $(dir $(wildcard */Makefile))
 
-.PHONY: all clean
+.PHONY: all clean release
+
+release: replay.rom poseidon.rom
+	@7z a replay_rom_`git describe --always --dirty`.zip $^
 
 all: replay.rom
 	@echo "** $@ done"
