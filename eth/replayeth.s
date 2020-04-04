@@ -188,7 +188,7 @@ ETHER_ADDR_SIZE = 6
 	BITDEF	STATE,PROMISCUOUS,1	; set if OpenUnit was promiscuous (matches SANA2OPB_PROM)
 	BITDEF	STATE,ACQUIRED,2	; set if OpenDevice has acquired the hardware
 	BITDEF	STATE,CONFIGURED,3	; set if S2_CONFIGINTERFACE was successful
-	BITDEF	STATE,ONLINE,4		; set if S2_ONLINE was successful
+	BITDEF	STATE,PAUSED,4		; set if S2_OFFLINE was successful
 	BITDEF	STATE,LINKUP,5		; set if the PHY Ethernet link has been established
 	BITDEF	STATE,TXINUSE,7		; transfer in flight - tx buffer in use
 
@@ -437,6 +437,13 @@ OpenDevice:	; ( unitnum:d0, flags:d1, iob:a1, device:a6 )
 	bsr	AcquireHardware
 	beq.b	.failed
 
+	; if returning to a CONFIGURED device, then enable NIC, unless PAUSED
+		btst	#STATEB_CONFIGURED,g_State(a6)
+		beq.b	.skipNIC
+		btst	#STATEB_PAUSED,g_State(a6)
+		bne.b	.skipNIC
+		bsr	HW_EnableNIC
+.skipNIC
 		clr.b	IO_ERROR(a1)
 		move.b	#NT_REPLYMSG,LN_TYPE(a1)
 
@@ -1183,8 +1190,8 @@ CmdRead
 
 		btst	#STATEB_CONFIGURED,g_State(a6)
 		beq	.noconfig
-		btst	#STATEB_ONLINE,g_State(a6)
-		beq	.notonline
+		btst	#STATEB_PAUSED,g_State(a6)
+		bne	.notonline
 
 		move.l	IOS2_BUFFERMANAGEMENT(a1),d0
 		beq	.noctx
@@ -1227,8 +1234,8 @@ CmdReadOrphan
 
 		btst	#STATEB_CONFIGURED,g_State(a6)
 		beq	.noconfig
-		btst	#STATEB_ONLINE,g_State(a6)
-		beq	.notonline
+		btst	#STATEB_PAUSED,g_State(a6)
+		bne	.notonline
 
 		move.l	IOS2_BUFFERMANAGEMENT(a1),d0
 		beq	.noctx
@@ -1275,8 +1282,8 @@ CmdWrite
 
 		btst	#STATEB_CONFIGURED,g_State(a6)
 		beq	.noconfig
-		btst	#STATEB_ONLINE,g_State(a6)
-		beq	.notonline
+		btst	#STATEB_PAUSED,g_State(a6)
+		bne	.notonline
 
 		move.l	IOS2_BUFFERMANAGEMENT(a1),d0
 		beq	.noctx
@@ -1400,11 +1407,8 @@ CmdConfigInterface
 
 		bset	#STATEB_CONFIGURED,g_State(a6)
 
-	; Genesis WTF?
-	; Genesis/NetConnect3/AmiTCP will put the interface ONLINE first
-	; and then CONFIGURE, assuming the ONLINE state is sticky..
-		bclr	#STATEB_ONLINE,g_State(a6)
-		bne	CmdOnline
+		bset	#STATEB_PAUSED,g_State(a6)
+		beq	CmdOnline
 
 .done
 		bra.w	TermIO
@@ -1525,9 +1529,8 @@ CmdOnline
 	kprintf	"S2_ONLINE"
 	kprintf_reset_color
 
-	; Genesis WTF? - see note in CmdConfigInterface
-		bset	#STATEB_ONLINE,g_State(a6)
-		bne.b	.terminate
+		bclr	#STATEB_PAUSED,g_State(a6)
+		beq.b	.terminate
 
 		btst	#STATEB_CONFIGURED,g_State(a6)
 		beq.b	.noconfig
@@ -1550,8 +1553,8 @@ CmdOffline
 	kprintf	"S2_OFFLINE"
 	kprintf_reset_color
 
-		bclr	#STATEB_ONLINE,g_State(a6)
-		beq.b	.offline
+		bset	#STATEB_PAUSED,g_State(a6)
+		bne.b	.offline
 
 		moveq.l	#S2ERR_OUTOFSERVICE,d0
 		moveq.l	#S2WERR_UNIT_OFFLINE,d1
@@ -1581,8 +1584,8 @@ CmdOnEvent
 	; already in the state to be waited for.
 
 		moveq.l	#S2EVENT_ONLINE,d0
-		btst	#STATEB_ONLINE,g_State(a6)
-		beq.b	.offline
+		btst	#STATEB_PAUSED,g_State(a6)
+		bne.b	.offline
 .check		and.l	IOS2_WIREERROR(a1),d0
 		beq.b	.enqueue
 
@@ -1888,8 +1891,8 @@ AcquireHardware	; ( unitnum:d0, flags:d1, iob:a1, device:a6 )
 ReleaseHardware	; ( device:a6 )
 		kprintf	"ReleaseHardware"
 
-		bclr	#STATEB_ONLINE,g_State(a6)
-		beq.b	.offline
+		bclr	#STATEB_PAUSED,g_State(a6)
+		bne.b	.offline
 
 		kprintf	"   NIC online - going offline"
 
