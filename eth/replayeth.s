@@ -83,15 +83,15 @@ VFULL	MACRO
 	ENDM
 
 VERSION		EQU	1
-REVISION	EQU	0
+REVISION	EQU	1
 
 VSTR	MACRO
-		dc.b	'1.0'
+		dc.b	'1.1'
 	ENDM
 
 VDATE	MACRO
-		dc.b	'01.10.2019'
-		ENDM
+		dc.b	'06.04.2020'
+	ENDM
 
 ; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
