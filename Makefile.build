@@ -44,7 +44,7 @@ $(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR):
 $(VC): $(VC).done
 $(VC).done: | $(CACHE_DIR)
 	cd $(CACHE_DIR) && rm -rf vbcc vbcc*.tar.gz
-	cd $(CACHE_DIR) && wget --no-check-certificate https://server.owl.de/~frank/tags/vbcc0_9g.tar.gz
+	cd $(CACHE_DIR) && wget http://phoenix.owl.de/tags/vbcc0_9g.tar.gz
 	cd $(CACHE_DIR) && tar xzf vbcc0_9g.tar.gz
 	cd $(CACHE_DIR) && patch -p 0 < ../vbcc.patch
 	cd $(CACHE_DIR) && cd vbcc && mkdir bin && make TARGET=m68k -j 4 && cp bin/vc ../bin && cp bin/vbccm68k ../bin
@@ -59,7 +59,7 @@ $(VC_CFG): $(REPO_ROOT)vc.cfg | $(CACHE_DIR)
 $(VC_M68K): $(VC_M68K).done
 $(VC_M68K).done : | $(CACHE_DIR)
 	cd $(CACHE_DIR) && rm -rf vbcc_target_m68k-amigaos*
-	cd $(CACHE_DIR) && wget --no-check-certificate http://server.owl.de/~frank/vbcc/2019-10-04/vbcc_target_m68k-amigaos.lha
+	cd $(CACHE_DIR) && wget http://phoenix.owl.de/vbcc/2019-10-04/vbcc_target_m68k-amigaos.lha
 	cd $(CACHE_DIR) && 7z x vbcc_target_m68k-amigaos.lha
 	cd $(CACHE_DIR) && cd vbcc_target_m68k-amigaos && mv targets/m68k-amigaos ../targets/m68k-amigaos
 	cd $(CACHE_DIR) && rm -rf vbcc_target_m68k-amigaos*
