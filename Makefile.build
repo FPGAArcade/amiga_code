@@ -126,7 +126,7 @@ $(RL): $(RL).done
 $(RL).done : | $(CACHE_DIR)
 	cd $(CACHE_DIR) && rm -rf rlaunch t2-build
 	cd $(CACHE_DIR) && git clone --recurse-submodules https://github.com/deplinenoise/tundra.git t2-build
-	cd $(CACHE_DIR) && cd t2-build && make -j 4 && make install
+	cd $(CACHE_DIR) && cd t2-build && make -j 4 && sudo make install
 	cd $(CACHE_DIR) && git clone https://github.com/deplinenoise/rlaunch.git
 	cd $(CACHE_DIR) && cd rlaunch && VBCC=$(VBCC) tundra2 release && cp t2-output/*-release-default/rl-controller* ../bin
 	cd $(CACHE_DIR) && rm -rf rlaunch t2-build
