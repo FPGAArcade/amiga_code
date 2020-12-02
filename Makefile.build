@@ -29,7 +29,7 @@ RL			:= $(CACHE_DIR)/bin/rl-controller
 
 .PHONY: distclean lvos buildenv $(VASM) $(VLINK) $(VC)
 
-buildenv: $(RL) $(VASM) $(VLINK) $(VC) $(VC_CFG) $(VC_M68K) $(NDK) $(LVO) $(SANA2) $(AHI) $(AMITCP)
+buildenv: $(VASM) $(VLINK) $(VC) $(VC_CFG) $(VC_M68K) $(NDK) $(LVO) $(SANA2) $(AHI) $(AMITCP)
 #	@echo "** $@ done"
 
 
