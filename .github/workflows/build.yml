@@ -1,0 +1,49 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  Linux:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: make clean
+      run: make clean
+    - name: make buildenv
+      run: make buildenv
+    - name: make
+      run: make
+    - name: make release
+      run: make release
+    - name: show zip contents
+      run: unzip -lv *.zip
+    - name: hash ROMs
+      run: 7z h *.rom
+    - name: show git status
+      run: git status -s
+      
+  macOS:
+  
+    runs-on: macos-10.15
+    
+    steps:
+    - uses: actions/checkout@v2
+    - name: make clean
+      run: make clean
+    - name: make buildenv
+      run: make buildenv
+    - name: make
+      run: make
+    - name: make release
+      run: make release
+    - name: show zip contents
+      run: unzip -lv *.zip
+    - name: hash ROMs
+      run: 7z h *.rom
+    - name: show git status
+      run: git status -s
