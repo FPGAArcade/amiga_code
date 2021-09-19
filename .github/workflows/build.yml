@@ -12,6 +12,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: buildenv hash
+      id: buildenv
+      run: echo "::set-output name=sha::$(sha1sum Makefile.build)"
+    - name: cache buildenv
+      uses: actions/cache@v2
+      id: cache-buildenv
+      with:
+        path: .cache
+        key: ${{ runner.os }}-buildenv-${{ steps.buildenv.outputs.sha }}
     - name: install
       run: |
           python3 --version
@@ -45,6 +54,15 @@ jobs:
     
     steps:
     - uses: actions/checkout@v2
+    - name: buildenv hash
+      id: buildenv
+      run: echo "::set-output name=sha::$(sha1sum Makefile.build)"
+    - name: cache buildenv
+      uses: actions/cache@v2
+      id: cache-buildenv
+      with:
+        path: .cache
+        key: ${{ runner.os }}-buildenv-${{ steps.buildenv.outputs.sha }}
     - name: install
       run: |
           python3 --version
