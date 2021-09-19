@@ -34,6 +34,11 @@ jobs:
     - name: show git status
       run: git status -s
       
+    - uses: actions/upload-artifact@v2
+      with:
+        name: built_on_linux
+        path: replay_rom_*.zip
+  
   macOS:
   
     runs-on: macos-10.15
@@ -61,3 +66,8 @@ jobs:
       run: 7z h *.rom
     - name: show git status
       run: git status -s
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: built_on_macos
+        path: replay_rom_*.zip
