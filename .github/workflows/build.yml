@@ -12,6 +12,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: install
+      run: |
+          python3 --version
+          python3 -m pip --version
+          python3 -m pip install --upgrade pip
+          python3 -m pip install setuptools
+          python3 -m pip install amitools
     - name: make clean
       run: make clean
     - name: make buildenv
@@ -33,6 +40,13 @@ jobs:
     
     steps:
     - uses: actions/checkout@v2
+    - name: install
+      run: |
+          python3 --version
+          python3 -m pip --version
+          python3 -m pip install --upgrade pip
+          python3 -m pip install setuptools
+          python3 -m pip install amitools
     - name: make clean
       run: make clean
     - name: make buildenv
