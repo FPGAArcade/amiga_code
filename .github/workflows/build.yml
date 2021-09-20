@@ -11,14 +11,10 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
-    - name: test
-      env: 
-        HASH: $(md5sum Makefile.build | cut -b-32)
-      run: echo "$HASH"
     - uses: actions/checkout@v2
     - name: buildenv hash
       id: buildenv
-      run: echo "::set-output name=sha::$(sha1sum Makefile.build | awk '{print $1}')"
+      run: echo "::set-output name=sha::$(md5sum Makefile.build | cut -b-32)"
     - name: cache buildenv
       uses: actions/cache@v2
       id: cache-buildenv
