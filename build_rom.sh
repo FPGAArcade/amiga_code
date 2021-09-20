@@ -12,7 +12,7 @@ romtool -v build -o poseidon.rom -t ext -s 512 -e 3f80000 -a 3f80000 -r 01.00 -f
 romtool scan poseidon.rom
 romtool info poseidon.rom
 
-echo -n RELEASE.md
+echo -n > RELEASE.md
 echo "Changes:" >> RELEASE.md
 echo "- [??] ???." >> RELEASE.md
 echo "" >> RELEASE.md
