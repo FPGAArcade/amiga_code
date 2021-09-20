@@ -48,6 +48,11 @@ jobs:
         name: built_on_linux
         path: replay_rom_*.zip
   
+    - uses: actions/upload-artifact@v2
+      with:
+        name: debug
+        path: ./*
+
   macOS:
   
     runs-on: macos-10.15
