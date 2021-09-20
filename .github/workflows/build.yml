@@ -2,6 +2,10 @@ name: build
 
 on:
   push:
+    paths:
+      - '**'
+    tags-ignore:
+      - '*'
   pull_request:
   workflow_dispatch:
 
