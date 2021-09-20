@@ -47,22 +47,6 @@ jobs:
       id: builddescr
       run: echo "::set-output name=git::$(git describe --always --dirty)"
 
-    - name: release info
-      run: |
-        echo -n RELEASE.md
-        echo "Changes:" >> RELEASE.md
-        echo "- [??] ???." >> RELEASE.md
-        echo "" >> RELEASE.md
-        echo "REPLAY.ROM" >> RELEASE.md
-        echo "```" >> RELEASE.md
-        romtool scan replay.rom >> RELEASE.md
-        echo "```" >> RELEASE.md
-        echo "POSEIDON.ROM" >> RELEASE.md
-        echo "```" >> RELEASE.md
-        romtool scan poseidon.rom >> RELEASE.md
-        echo "```" >> RELEASE.md
-        cat RELEASE.md
-
     - name: release
       id: create_release
       uses: actions/create-release@v1
