@@ -16,11 +16,13 @@ echo -n > RELEASE.md
 echo "Changes:" >> RELEASE.md
 echo "- [??] ???." >> RELEASE.md
 echo "" >> RELEASE.md
-echo "REPLAY.ROM" >> RELEASE.md
+echo -n "REPLAY.ROM " >> RELEASE.md
+romtool info replay.rom | grep rom_rev | awk '{print $2}' >> RELEASE.md
 echo "\`\`\`" >> RELEASE.md
 romtool scan replay.rom >> RELEASE.md
 echo "\`\`\`" >> RELEASE.md
-echo "POSEIDON.ROM" >> RELEASE.md
+echo -n "POSEIDON.ROM " >> RELEASE.md
+romtool info poseidon.rom | grep rom_rev | awk '{print $2}' >> RELEASE.md
 echo "\`\`\`" >> RELEASE.md
 romtool scan poseidon.rom >> RELEASE.md
 echo "\`\`\`" >> RELEASE.md
