@@ -50,7 +50,7 @@ jobs:
     - uses: actions/upload-artifact@v2
       with:
         name: replay_rom_${{ steps.builddescr.outputs.git }}.zip
-        path: replay_rom_${{ steps.builddescr.outputs.git }}.zip
+        path: ./*.rom
 
   macOS:
   
@@ -88,8 +88,3 @@ jobs:
       run: 7z h *.rom
     - name: show git status
       run: git status -s
-
-    - uses: actions/upload-artifact@v2
-      with:
-        name: built_on_macos
-        path: replay_rom_*.zip
