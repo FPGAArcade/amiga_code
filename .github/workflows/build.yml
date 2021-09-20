@@ -43,10 +43,14 @@ jobs:
     - name: show git status
       run: git status -s
       
+    - name: buildenv description
+      id: builddescr
+      run: echo "::set-output name=git::$(git describe --always --dirty)"
+      
     - uses: actions/upload-artifact@v2
       with:
-        name: built_on_linux
-        path: replay_rom_*.zip
+        name: replay_rom_${{ steps.builddescr.outputs.git }}.zip
+        path: replay_rom_${{ steps.builddescr.outputs.git }}.zip
 
   macOS:
   
