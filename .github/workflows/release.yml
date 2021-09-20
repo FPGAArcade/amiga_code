@@ -1,0 +1,70 @@
+name: release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  Linux:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: buildenv hash
+      id: buildenv
+      run: echo "::set-output name=sha::$(md5sum Makefile.build | cut -b-32)"
+    - name: cache buildenv
+      uses: actions/cache@v2
+      id: cache-buildenv
+      with:
+        path: .cache
+        key: ${{ runner.os }}-buildenv-${{ steps.buildenv.outputs.sha }}
+    - name: install
+      run: |
+          python3 --version
+          python3 -m pip --version
+          python3 -m pip install --upgrade pip
+          python3 -m pip install setuptools
+          python3 -m pip install amitools
+    - name: make clean
+      run: make clean
+    - name: make buildenv
+      run: make buildenv
+    - name: make
+      run: make
+    - name: make release
+      run: make release
+    - name: show zip contents
+      run: unzip -lv *.zip
+    - name: hash ROMs
+      run: 7z h *.rom
+    - name: show git status
+      run: git status -s
+      
+    - name: buildenv description
+      id: builddescr
+      run: echo "::set-output name=git::$(git describe --always --dirty)"
+
+    - name: release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: REPLAY.ROM ${{ github.ref }}
+        body_path: RELEASE.md
+        draft: false
+        prerelease: true
+ 
+    - name: upload
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./replay_rom_${{ steps.builddescr.outputs.git }}.zip
+        asset_name: replay_rom_${{ steps.builddescr.outputs.git }}.zip
+        asset_content_type: application/zip
