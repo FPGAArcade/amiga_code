@@ -13,6 +13,7 @@
 ;
 ;
 
+; 2.0    - Embed Replay.card inside replay.com
 ; 1.26   - Set pixelclocks for 24bit TrueColor
 ; 1.25   - Use mmu.library to set MMU cache mode (if available) (eriQue)
 ; 1.24   - Fix fast mem alloc with 060db (eriQue)
@@ -166,8 +167,8 @@ _bugprintf_end:
 	dc.w	RTC_MATCHWORD
 	dc.l	RomTag
 	dc.l	ProgEnd
-	dc.b	RTF_AUTOINIT	;RT_FLAGS
-	dc.b	1		;RT_VERSION
+	dc.b	RTF_AUTOINIT|RTF_AFTERDOS	;RT_FLAGS
+	dc.b	2		;RT_VERSION
 	dc.b	NT_LIBRARY	;RT_TYPE
 	dc.b	0		;RT_PRI
 	dc.l	ReplayCard
@@ -179,7 +180,7 @@ ReplayCard:
 	dc.b	'Replay.card',0,0
 	dc.b	'$VER: '
 IDString:
-	dc.b	'Replay.card 1.26 (15.3.2022)',0
+	dc.b	'Replay.card 2.0 (15.3.2022)',0
 	dc.b	0
 expansionLibName:
 	dc.b	'expansion.library',0
@@ -204,8 +205,8 @@ DataTable:
 	INITBYTE	LN_PRI,206
 	INITLONG	LN_NAME,ReplayCard
 	INITBYTE	LIB_FLAGS,LIBF_SUMUSED|LIBF_CHANGED
-	INITWORD	LIB_VERSION,1
-	INITWORD	LIB_REVISION,26
+	INITWORD	LIB_VERSION,2
+	INITWORD	LIB_REVISION,0
 	INITLONG	LIB_IDSTRING,IDString
 	INITLONG	CARD_NAME,CardName
 	dc.w		0,0
