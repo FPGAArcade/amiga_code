@@ -1774,17 +1774,31 @@ _LVORebuildTreesA           	EQU	-360
 		movem.l	d0/a0,-(sp)		; (sp),4(sp) = size,addr
 		move.l	d1,a3			; a3 = flags
 
-		moveq.l	#41,d0
-		lea	.mmuName,a1
-		CALLLIB	_LVOOpenLibrary
-		tst.l	d0
+	; Only attempt mmu.library if it's already loaded (via SetPatch)
+		FORBID
+
+		lea	LibList(a6),a0
+.retry		lea	.mmuName(pc),a1
+		CALLLIB	_LVOFindName
+
+		move.l	d0,d2
+		beq.b	.done
+		movea.l	d0,a0
+
+		cmp.w	#46,LIB_VERSION(a0)
+		blt.b	.retry
+
+.done
+		PERMIT
+
+		tst.l	d2
 		bne.b	.mmulib_ok
 
 		pea	.exit(pc)
 		bra	.failed
 
 	; Verify MMU presence
-.mmulib_ok	move.l	d0,a6
+.mmulib_ok	move.l	d2,a6
 		CALLLIB	_LVOGetMMUType
 		tst.b	d0
 		bne.b	.mmu_ok
