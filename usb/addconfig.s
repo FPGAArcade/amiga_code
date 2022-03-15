@@ -34,7 +34,7 @@
 VERSION	= 1
 REVISION= 0
 
-VERSTRING	dc.b	'usb_eth.autoconfig 1.0 (16.9.2018) ZorroIII config for Replay USB/Ethernet Card',13,10,0
+VERSTRING	dc.b	'usb_eth.autoconfig 1.1 (15.3.2022) ZorroIII config for Replay USB/Ethernet Card',13,10,0
 	even
 	
 romtag:	dc.w	RTC_MATCHWORD
@@ -53,8 +53,11 @@ name:	dc.b	'usb_eth.autoconfig',0
 	
 S:
 	kprintf	"INIT: %s",#VERSTRING
+	     	                    	; $4000.0000 (USB/ETH base) + $0010.0000 (MACH_USBREGS) + $0304 (ISP_CHIPID)
+	cmp.l	#$00011761,$40100304	; $0001.1761 == Valid Chip ID
+	bne.b	.exit
 	bsr.b	AddBoardConfig
-	moveq.l	#0,d0
+.exit	moveq.l	#0,d0
 	rts
 
 AddBoardConfig:
