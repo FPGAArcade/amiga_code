@@ -13,6 +13,9 @@
 ;
 ;
 
+; 2.0    - Embed Replay.card inside replay.com
+; 1.26   - Set pixelclocks for 24bit TrueColor
+; 1.25   - Use mmu.library to set MMU cache mode (if available) (eriQue)
 ; 1.24   - Fix fast mem alloc with 060db (eriQue)
 ;           Request MMU cache mode change (040/060)
 ; 1.0.23 - Made compatible with ASM-One/AsmPro and PhxAss and vasm (eriQue)
@@ -66,6 +69,7 @@ SYSTEM_INCLUDES
 	include exec/exec.i
 	include libraries/expansionbase.i
 	include hardware/intbits.i
+	include utility/tagitem.i
 	ENDC
 
 ;debug
@@ -147,8 +151,11 @@ bugprintf:
 		movem.l	(sp)+,d0-d1/a0-a3/a6
 		rts
 
-.putch:		move.l	a3,a6
-		jmp	-516(a6)		; _LVORawPutChar (execPrivate9)
+.putch:		move.l	a6,-(sp)
+		move.l	a3,a6
+		jsr	-516(a6)		; _LVORawPutChar (execPrivate9)
+		move.l	(sp)+,a6
+		rts
 _bugprintf_end:
 	rts
 	ENDC
@@ -160,8 +167,8 @@ _bugprintf_end:
 	dc.w	RTC_MATCHWORD
 	dc.l	RomTag
 	dc.l	ProgEnd
-	dc.b	RTF_AUTOINIT	;RT_FLAGS
-	dc.b	1		;RT_VERSION
+	dc.b	RTF_AUTOINIT|RTF_AFTERDOS	;RT_FLAGS
+	dc.b	2		;RT_VERSION
 	dc.b	NT_LIBRARY	;RT_TYPE
 	dc.b	0		;RT_PRI
 	dc.l	ReplayCard
@@ -173,7 +180,7 @@ ReplayCard:
 	dc.b	'Replay.card',0,0
 	dc.b	'$VER: '
 IDString:
-	dc.b	'Replay.card 1.24 (30.01.2018)',0
+	dc.b	'Replay.card 2.0 (15.3.2022)',0
 	dc.b	0
 expansionLibName:
 	dc.b	'expansion.library',0
@@ -198,7 +205,7 @@ DataTable:
 	INITBYTE	LN_PRI,206
 	INITLONG	LN_NAME,ReplayCard
 	INITBYTE	LIB_FLAGS,LIBF_SUMUSED|LIBF_CHANGED
-	INITWORD	LIB_VERSION,1
+	INITWORD	LIB_VERSION,2
 	INITWORD	LIB_REVISION,0
 	INITLONG	LIB_IDSTRING,IDString
 	INITLONG	CARD_NAME,CardName
@@ -446,10 +453,11 @@ DataTable:
 
 	move.l	#113440000,PSSO_BoardInfo_MemoryClock(a2)
 
+	; Max pixel clocks (see PixelClockTable for indices)
 	move.l	#16,(PSSO_BoardInfo_PixelClockCount+0,a2)
 	move.l	#16,(PSSO_BoardInfo_PixelClockCount+4,a2)
 	move.l	#12,(PSSO_BoardInfo_PixelClockCount+8,a2)
-	move.l	#8,(PSSO_BoardInfo_PixelClockCount+12,a2)
+	move.l	#9,(PSSO_BoardInfo_PixelClockCount+12,a2)
 	move.l	#7,(PSSO_BoardInfo_PixelClockCount+16,a2)
 ;- Planar
 ;- Chunky
@@ -512,7 +520,18 @@ DataTable:
 	move.l	a1,PSSO_BoardInfo_SetSpriteColor(a2)
 	ENDC
 
+;	Try to set memory region MMU flags via mmu.library first
+	move.l	PSSO_BoardInfo_MemoryBase(a2),a0
+	move.l	PSSO_BoardInfo_MemorySize(a2),d0
+	move.l	#MAPP_CACHEINHIBIT|MAPP_IMPRECISE|MAPP_NONSERIALIZED,d1
+	move.l	PSSO_BoardInfo_ExecBase(a2),a6
+	bsr	SetMMU
+	cmp.l	#-1,d0
+	bne.b	.skip
+
+;	mmu.library failed - let's try with the P96 flags
 	ori.l	#(1<<3),PSSO_BoardInfo_Flags(a2)	; BIF_CACHEMODECHANGE
+.skip
 	move.l	PSSO_BoardInfo_MemoryBase(a2),(PSSO_BoardInfo_MemorySpaceBase,a2)
 	move.l	PSSO_BoardInfo_MemorySize(a2),(PSSO_BoardInfo_MemorySpaceSize,a2)
 
@@ -1069,22 +1088,22 @@ SecondUnionTable:	; clock generator select
 
 PixelClockTable:
 
-	dc.l	7156250		;28.625	div	4
-	dc.l	10000000	;40	div	4
-	dc.l	12500000	;50	div	4
-	dc.l	20000000	;40	div	2
-	dc.l	25000000	;50	div	2
-	dc.l	27000000	;108	div	4
-	dc.l	28625000	;28.625	div	1
-	dc.l	36000000	;108	div	3
-	dc.l	40000000	;40	div	1
-	dc.l	50000000	;50	div	1
-	dc.l	54000000	;108	div	2
-	dc.l	57250000	;114.5	div	2
-	dc.l	74250000	;74.25	div	1
-	dc.l	82000000	;82	div	1
-	dc.l	108000000	;108	div	1
-	dc.l	114500000	;114.5	div	1
+.1	dc.l	7156250		;28.625	div	4
+.2	dc.l	10000000	;40	div	4
+.3	dc.l	12500000	;50	div	4
+.4	dc.l	20000000	;40	div	2
+.5	dc.l	25000000	;50	div	2
+.6	dc.l	27000000	;108	div	4
+.7	dc.l	28625000	;28.625	div	1
+.8	dc.l	36000000	;108	div	3
+.9	dc.l	40000000	;40	div	1
+.10	dc.l	50000000	;50	div	1
+.11	dc.l	54000000	;108	div	2
+.12	dc.l	57250000	;114.5	div	2
+.13	dc.l	74250000	;74.25	div	1
+.14	dc.l	82000000	;82	div	1
+.15	dc.l	108000000	;108	div	1
+.16	dc.l	114500000	;114.5	div	1
 
 
 ;------------------------------------------------------------------------------
@@ -1727,6 +1746,226 @@ Scale2X:
 	rts
 
 ;==============================================================================
+
+SetMMU	; ( addr:a0 size:d0 flags:d1 exec:a6 )
+	; returns old flags in d0/d1
+	; ( d0-d1/a0-a1 are scratch )
+
+MAPP_CACHEINHIBIT       equ     (1<<6)
+MAPP_COPYBACK           equ     (1<<13)
+MAPP_IMPRECISE          equ     (1<<21)
+MAPP_NONSERIALIZED      equ     (1<<29)
+
+_LVOGetMapping              	EQU	-36
+_LVOReleaseMapping          	EQU	-42
+_LVOGetPageSize             	EQU	-48
+_LVOGetMMUType              	EQU	-54
+_LVOLockMMUContext          	EQU	-72
+_LVOUnlockMMUContext        	EQU	-78
+_LVOSetPropertiesA          	EQU	-84
+_LVOGetPropertiesA          	EQU	-90
+_LVORebuildTree             	EQU	-96
+_LVOSuperContext            	EQU	-144
+_LVODefaultContext          	EQU	-150
+_LVOLockContextList         	EQU	-210
+_LVOUnlockContextList       	EQU	-216
+_LVOSetPropertyList         	EQU	-228
+_LVORebuildTreesA           	EQU	-360
+
+		movem.l	d2-d7/a2-a5,-(sp)
+
+		movem.l	d0/a0,-(sp)		; (sp),4(sp) = size,addr
+		move.l	d1,a3			; a3 = flags
+
+	; Only attempt mmu.library if it's already loaded (via SetPatch)
+		FORBID
+
+		lea	LibList(a6),a0
+.retry		lea	.mmuName(pc),a1
+		CALLLIB	_LVOFindName
+
+		move.l	d0,d2
+		beq.b	.done
+		movea.l	d0,a0
+
+		cmp.w	#46,LIB_VERSION(a0)
+		blt.b	.retry
+
+.done
+		PERMIT
+
+		tst.l	d2
+		bne.b	.mmulib_ok
+
+		pea	.exit(pc)
+		bra	.failed
+
+	; Verify MMU presence
+.mmulib_ok	move.l	d2,a6
+		CALLLIB	_LVOGetMMUType
+		tst.b	d0
+		bne.b	.mmu_ok
+
+		pea	.nommu(pc)
+		bra	.failed
+
+.mmu_ok
+		sub.b	#'0',d0
+
+	; Get contexts
+		CALLLIB	_LVODefaultContext
+		movea.l	d0,a5			; a5 = ctx
+		move.l	d0,a0
+		CALLLIB	_LVOSuperContext
+		movea.l	d0,a4			; a4 = sctx
+
+		move.l	a5,d0
+		CALLLIB	_LVOGetPageSize
+		move.l	d0,d7			; d7 = pagesize
+
+		move.l	a4,d0
+		CALLLIB	_LVOGetPageSize
+		cmp.l	d0,d7
+		beq.b	.page_ok
+
+		pea	.nommu(pc)
+		bra	.failed
+
+.page_ok
+	; adjust address and size to match page size
+		movem.l	(sp),d0/d1
+
+		move.l	d7,d6
+		subq.l	#1,d6
+		not.l	d6
+		move.l	d1,d2
+		and.l	d6,d1
+		sub.l	d1,d2
+		add.l	d2,d0
+		add.l	d7,d0
+		and.l	d6,d0
+
+		movem.l	d0/d1,(sp)		; (sp),4(sp) = adjusted size/addr
+
+	; Lock contexts
+		CALLLIB	_LVOLockContextList
+		movea.l	a5,a0
+		CALLLIB	_LVOLockMMUContext (ctx)
+		movea.l	a4,a0
+		CALLLIB	_LVOLockMMUContext (sctx)
+
+	; Get mapping
+		move.l	a5,a0
+		CALLLIB	_LVOGetMapping (ctx)
+		move.l	d0,d5			; d5 = ctx mapping
+		bne.b	.ctx_ok
+
+		pea	.unlock(pc)
+		bra	.failed
+
+.ctx_ok		move.l	a4,a0
+		CALLLIB	_LVOGetMapping (sctx)
+		move.l	d0,d4			; d4 = ctx mapping
+		bne.b	.sctx_ok
+
+		pea	.release(pc)
+		bra	.failed
+
+.sctx_ok	movem.l	(sp),d6/d7		; d6 = size, d7 = addr
+
+		move.l	a5,a0
+		move.l	d7,a1
+		lea	.tagDone,a2
+		CALLLIB	_LVOGetPropertiesA (ctx,from,TAG_DONE)
+		move.l	d0,(sp)			; (sp) = old flags (ctx)
+
+		move.l	a5,a0
+		move.l	a3,d1
+		move.l	#MAPP_CACHEINHIBIT|MAPP_IMPRECISE|MAPP_NONSERIALIZED|MAPP_COPYBACK,d2
+		move.l	d6,d0
+		move.l	d7,a1
+		lea	.tagDone(pc),a2
+		CALLLIB	_LVOSetPropertiesA (ctx,flags,mask,from,size,TAG_DONE)
+		tst.b	d0
+		beq	.revert
+
+		move.l	a4,a0
+		move.l	d7,a1
+		movem.l	(sp),d0/a1
+		lea	.tagDone,a2
+		CALLLIB	_LVOGetPropertiesA (sctx,from,TAG_DONE)
+		move.l	d0,4(sp)		; 4(sp) = old flags (sctx)
+
+		move.l	a4,a0
+		move.l	a3,d1
+		move.l	#MAPP_CACHEINHIBIT|MAPP_IMPRECISE|MAPP_NONSERIALIZED|MAPP_COPYBACK,d2
+		move.l	d6,d0
+		move.l	d7,a1
+		lea	.tagDone(pc),a2
+		CALLLIB	_LVOSetPropertiesA (sctx,flags,mask,from,size,TAG_DONE)
+		tst.b	d0
+		beq	.revert
+
+		sub.w	#4*3,sp
+		move.l	a5,(sp)
+		move.l	a4,4(sp)
+		clr.l	8(sp)
+		move.l	sp,a0
+		CALLLIB	_LVORebuildTreesA (ctx,sctx,NULL)
+		add.w	#4*3,sp
+		tst.b	d0
+		bne	.success
+
+.revert
+		pea	.cleanup(pc)
+		move.l	a5,a0
+		move.l	d5,a1
+		CALLLIB _LVOSetPropertyList (ctx,ctxl)
+		move.l	a4,a0
+		move.l	d4,a1
+		CALLLIB _LVOSetPropertyList (sctx,sctxl)
+
+.failed
+		moveq.l	#-1,d0
+		move.l	d0,4(sp)		; set return values
+		move.l	d0,8(sp)
+		rts
+
+.success
+
+.cleanup
+		move.l	a4,a0
+		move.l	d4,a1
+		CALLLIB	_LVOReleaseMapping (sctx,sctxl)
+
+.release
+		move.l	a5,a0
+		move.l	d5,a1
+		CALLLIB	_LVOReleaseMapping (ctx,ctxl)
+
+.unlock
+
+	; Unlock contexts
+		movea.l	a4,a0
+		CALLLIB	_LVOUnlockMMUContext (sctx)
+		movea.l	a5,a0
+		CALLLIB	_LVOUnlockMMUContext (ctx)
+		CALLLIB	_LVOUnlockContextList
+
+.nommu
+
+		move.l	a6,a1
+		move.l	4.w,a6
+		CALLLIB	_LVOCloseLibrary
+
+.exit:
+		movem.l	(sp)+,d0/d1
+		movem.l	(sp)+,d2-d7/a2-a5
+		rts
+
+.mmuName	dc.b	"mmu.library",0
+		even
+.tagDone	dc.l	TAG_DONE
 
 ProgEnd:
 	end
