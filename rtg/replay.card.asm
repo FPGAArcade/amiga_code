@@ -13,6 +13,7 @@
 ;
 ;
 
+; 1.26   - Set pixelclocks for 24bit TrueColor
 ; 1.25   - Use mmu.library to set MMU cache mode (if available) (eriQue)
 ; 1.24   - Fix fast mem alloc with 060db (eriQue)
 ;           Request MMU cache mode change (040/060)
@@ -178,7 +179,7 @@ ReplayCard:
 	dc.b	'Replay.card',0,0
 	dc.b	'$VER: '
 IDString:
-	dc.b	'Replay.card 1.25 (12.6.2021)',0
+	dc.b	'Replay.card 1.26 (15.3.2022)',0
 	dc.b	0
 expansionLibName:
 	dc.b	'expansion.library',0
@@ -204,7 +205,7 @@ DataTable:
 	INITLONG	LN_NAME,ReplayCard
 	INITBYTE	LIB_FLAGS,LIBF_SUMUSED|LIBF_CHANGED
 	INITWORD	LIB_VERSION,1
-	INITWORD	LIB_REVISION,25
+	INITWORD	LIB_REVISION,26
 	INITLONG	LIB_IDSTRING,IDString
 	INITLONG	CARD_NAME,CardName
 	dc.w		0,0
@@ -451,10 +452,11 @@ DataTable:
 
 	move.l	#113440000,PSSO_BoardInfo_MemoryClock(a2)
 
+	; Max pixel clocks (see PixelClockTable for indices)
 	move.l	#16,(PSSO_BoardInfo_PixelClockCount+0,a2)
 	move.l	#16,(PSSO_BoardInfo_PixelClockCount+4,a2)
 	move.l	#12,(PSSO_BoardInfo_PixelClockCount+8,a2)
-	move.l	#8,(PSSO_BoardInfo_PixelClockCount+12,a2)
+	move.l	#9,(PSSO_BoardInfo_PixelClockCount+12,a2)
 	move.l	#7,(PSSO_BoardInfo_PixelClockCount+16,a2)
 ;- Planar
 ;- Chunky
@@ -1085,22 +1087,22 @@ SecondUnionTable:	; clock generator select
 
 PixelClockTable:
 
-	dc.l	7156250		;28.625	div	4
-	dc.l	10000000	;40	div	4
-	dc.l	12500000	;50	div	4
-	dc.l	20000000	;40	div	2
-	dc.l	25000000	;50	div	2
-	dc.l	27000000	;108	div	4
-	dc.l	28625000	;28.625	div	1
-	dc.l	36000000	;108	div	3
-	dc.l	40000000	;40	div	1
-	dc.l	50000000	;50	div	1
-	dc.l	54000000	;108	div	2
-	dc.l	57250000	;114.5	div	2
-	dc.l	74250000	;74.25	div	1
-	dc.l	82000000	;82	div	1
-	dc.l	108000000	;108	div	1
-	dc.l	114500000	;114.5	div	1
+.1	dc.l	7156250		;28.625	div	4
+.2	dc.l	10000000	;40	div	4
+.3	dc.l	12500000	;50	div	4
+.4	dc.l	20000000	;40	div	2
+.5	dc.l	25000000	;50	div	2
+.6	dc.l	27000000	;108	div	4
+.7	dc.l	28625000	;28.625	div	1
+.8	dc.l	36000000	;108	div	3
+.9	dc.l	40000000	;40	div	1
+.10	dc.l	50000000	;50	div	1
+.11	dc.l	54000000	;108	div	2
+.12	dc.l	57250000	;114.5	div	2
+.13	dc.l	74250000	;74.25	div	1
+.14	dc.l	82000000	;82	div	1
+.15	dc.l	108000000	;108	div	1
+.16	dc.l	114500000	;114.5	div	1
 
 
 ;------------------------------------------------------------------------------
