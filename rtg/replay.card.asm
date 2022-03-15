@@ -149,8 +149,11 @@ bugprintf:
 		movem.l	(sp)+,d0-d1/a0-a3/a6
 		rts
 
-.putch:		move.l	a3,a6
-		jmp	-516(a6)		; _LVORawPutChar (execPrivate9)
+.putch:		move.l	a6,-(sp)
+		move.l	a3,a6
+		jsr	-516(a6)		; _LVORawPutChar (execPrivate9)
+		move.l	(sp)+,a6
+		rts
 _bugprintf_end:
 	rts
 	ENDC
