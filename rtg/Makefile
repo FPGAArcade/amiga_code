@@ -1,8 +1,8 @@
-VASM_FLAGS	:= -quiet -nowarn=1012 -cnop=0x0000 -m68020 -Fhunkexe -kick1hunks -nosym -no-opt
+VASM_FLAGS	:= -quiet -nowarn=1012 -nowarn=62 -cnop=0x0000 -m68020 -Fhunkexe -kick1hunks -nosym -no-opt
 
 TARGET		:= Replay.card
 SOURCE		:= replay.card.asm
-INCLUDES	:= P96BoardInfo.i P96CardStruct.i P96ModeInfo.i vde.i
+INCLUDES	:= boardinfo.i settings.i vde.i
 LISTFILE	:= $(addsuffix .txt,$(basename $(TARGET)))
 
 all: $(TARGET)
