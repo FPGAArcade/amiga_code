@@ -39,9 +39,7 @@
 ; vasmm68k_mot -quiet -nowarn=1012 -cnop=0x0000 -m68020 -Fhunkexe -kick1hunks -nosym -no-opt replay.card.asm -o Replay.card -L replay.txt -I ~/Dropbox/NDK_3.9/Include/include_i
 
 	incdir  drivers:rtg/
-	include P96BoardInfo.i
-	include P96ModeInfo.i
-	include P96CardStruct.i
+	include boardinfo.i
 	include vde.i
 
 	IFND	AUTO
@@ -188,7 +186,7 @@ expansionLibName:
 	cnop	0,4
 
 InitTable:
-	dc.l	CARD_SIZEOF	;DataSize
+	dc.l	card_SIZEOF	;DataSize
 	dc.l	FuncTable	;FunctionTable
 	dc.l	DataTable	;DataTable
 	dc.l	InitRoutine
@@ -208,7 +206,7 @@ DataTable:
 	INITWORD	LIB_VERSION,2
 	INITWORD	LIB_REVISION,0
 	INITLONG	LIB_IDSTRING,IDString
-	INITLONG	CARD_NAME,CardName
+	INITLONG	card_Name,CardName
 	dc.w		0,0
 
 ;------------------------------------------------------------------------------
@@ -219,13 +217,13 @@ DataTable:
 
 	movem.l	a5,-(sp)
 	movea.l	d0,a5
-	move.l	a6,CARD_EXECBASE(a5)
-	move.l	a0,CARD_SEGMENTLIST(a5)
+	move.l	a6,card_ExecBase(a5)
+	move.l	a0,card_SegmentList(a5)
 	lea	expansionLibName(pc),a1
 	moveq	#0,d0
 	jsr	_LVOOpenLibrary(a6)
 
-	move.l	d0,CARD_EXPANSIONBASE(a5)
+	move.l	d0,card_ExpansionBase(a5)
 	bne.b	.exit
 
 	movem.l	d7/a5/a6,-(sp)
@@ -244,7 +242,7 @@ DataTable:
 ;------------------------------------------------------------------------------
 
 	addq.w	#1,LIB_OPENCNT(a6)
-	bclr	#3,CARD_FLAGS(a6)
+	bclr	#LIBB_DELEXP,card_Flags(a6)
 
 	IFD blitterhistory
 	move.l	a0,-(sp)
@@ -268,7 +266,7 @@ DataTable:
 	subq.w	#1,LIB_OPENCNT(a6)
 	bne.b	.exit
 
-	btst	#3,CARD_FLAGS(a6)
+	btst	#LIBB_DELEXP,card_Flags(a6)
 	beq.b	.exit
 
 	bsr.b	Expunge
@@ -282,20 +280,20 @@ DataTable:
 
 	movem.l	d2/a5/a6,-(sp)
 	movea.l	a6,a5
-	movea.l	CARD_EXECBASE(a5),a6
+	movea.l	card_ExecBase(a5),a6
 	tst.w	LIB_OPENCNT(a5)
 	beq.b	.remove
 
-	bset	#3,CARD_FLAGS(a5)
+	bset	#LIBB_DELEXP,card_Flags(a5)
 	moveq	#0,d0
 	bra.b	.exit
 
 .remove:
-	move.l	CARD_SEGMENTLIST(a5),d2
+	move.l	card_SegmentList(a5),d2
 	movea.l	a5,a1
 	jsr	_LVORemove(a6)
 
-	movea.l	CARD_EXPANSIONBASE(a5),a1
+	movea.l	card_ExpansionBase(a5),a1
 	jsr	_LVOCloseLibrary(a6)
 
 	moveq	#0,d0
@@ -338,7 +336,7 @@ DataTable:
 	movea.l	a0,a2
 
 
-	movea.l	CARD_EXPANSIONBASE(a6),a6
+	movea.l	card_ExpansionBase(a6),a6
 
 	suba.l	a0,a0
 .next:
@@ -353,7 +351,7 @@ DataTable:
 	bclr	#CDB_CONFIGME,cd_Flags(a0)
 	beq.b	.next
 
-	move.l	cd_BoardAddr(a0),(PSSO_BoardInfo_RegisterBase,a2)
+	move.l	cd_BoardAddr(a0),(gbi_RegisterBase,a2)
 
 	move.l	$4.w,a6
 	move.l	#MEMORY_SIZE,d0
@@ -375,8 +373,8 @@ DataTable:
 .ok
 	addi.l	#$0000FFFF,d0		; add 64K-1
 	andi.l	#$FFFF0000,d0		; and with 64K to even align memory
-	move.l	d0,PSSO_BoardInfo_MemoryBase(a2)
-	move.l	#MEMORY_SIZE,PSSO_BoardInfo_MemorySize(a2)
+	move.l	d0,gbi_MemoryBase(a2)
+	move.l	#MEMORY_SIZE,gbi_MemorySize(a2)
 
 ;	bchg.b	#1,$bfe001
 
@@ -394,150 +392,145 @@ DataTable:
 	movea.l	a0,a2
 
 	lea	CardName(pc),a1
-	move.l	a1,PSSO_BoardInfo_BoardName(a2)
-	move.l	#10,PSSO_BoardInfo_BoardType(a2)
-	move.l	#0,PSSO_BoardInfo_GraphicsControllerType(a0)
-	move.l	#0,PSSO_BoardInfo_PaletteChipType(a2)
+	move.l	a1,gbi_BoardName(a2)
+	move.l	#10,gbi_BoardType(a2)
+	move.l	#0,gbi_GraphicsControllerType(a0)
+	move.l	#0,gbi_PaletteChipType(a2)
 
-;	ori.w	#$3FF2,PSSO_BoardInfo_RGBFormats(a2)
-	ori.w	#$3FFE,PSSO_BoardInfo_RGBFormats(a2)
+;	ori.w	#$3FF2,gbi_RGBFormats(a2)
+	ori.w	#$3FFE,gbi_RGBFormats(a2)
 
-	move.w	#8,PSSO_BoardInfo_BitsPerCannon(a2)
-	move.l	#MEMORY_SIZE-$40000,PSSO_BoardInfo_MemorySpaceSize(a2)
-	move.l	PSSO_BoardInfo_MemoryBase(a2),d0
-	move.l	d0,PSSO_BoardInfo_MemorySpaceBase(a2)
+	move.w	#8,gbi_BitsPerCannon(a2)
+	move.l	#MEMORY_SIZE-$40000,gbi_MemorySpaceSize(a2)
+	move.l	gbi_MemoryBase(a2),d0
+	move.l	d0,gbi_MemorySpaceBase(a2)
 	addi.l	#MEMORY_SIZE-$4000,d0
-	move.l	d0,PSSO_BoardInfo_MouseSaveBuffer(a2)
+	move.l	d0,gbi_MouseSaveBuffer(a2)
 
-	ori.l	#(1<<20),PSSO_BoardInfo_Flags(a2)	; BIF_INDISPLAYCHAIN
-;	ori.l	#(1<<1),PSSO_BoardInfo_Flags(a2)	; BIF_NOMEMORYMODEMIX
+	ori.l	#(1<<20),gbi_Flags(a2)	; BIF_INDISPLAYCHAIN
+;	ori.l	#(1<<1),gbi_Flags(a2)	; BIF_NOMEMORYMODEMIX
 
 	lea	SetSwitch(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetSwitch(a2)
+	move.l	a1,gbi_SetSwitch(a2)
 	lea	SetDAC(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetDAC(a2)
+	move.l	a1,gbi_SetDAC(a2)
 	lea	SetGC(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetGC(a2)
+	move.l	a1,gbi_SetGC(a2)
 	lea	SetPanning(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetPanning(a2)
+	move.l	a1,gbi_SetPanning(a2)
 	lea	CalculateBytesPerRow(pc),a1
-	move.l	a1,PSSO_BoardInfo_CalculateBytesPerRow(a2)
+	move.l	a1,gbi_CalculateBytesPerRow(a2)
 	lea	CalculateMemory(pc),a1
-	move.l	a1,PSSO_BoardInfo_CalculateMemory(a2)
+	move.l	a1,gbi_CalculateMemory(a2)
 	lea	GetCompatibleFormats(pc),a1
-	move.l	a1,PSSO_BoardInfo_GetCompatibleFormats(a2)
+	move.l	a1,gbi_GetCompatibleFormats(a2)
 	lea	SetColorArray(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetColorArray(a2)
+	move.l	a1,gbi_SetColorArray(a2)
 	lea	SetDPMSLevel(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetDPMSLevel(a2)
+	move.l	a1,gbi_SetDPMSLevel(a2)
 	lea	SetDisplay(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetDisplay(a2)
+	move.l	a1,gbi_SetDisplay(a2)
 	lea	SetMemoryMode(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetMemoryMode(a2)
+	move.l	a1,gbi_SetMemoryMode(a2)
 	lea	SetWriteMask(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetWriteMask(a2)
+	move.l	a1,gbi_SetWriteMask(a2)
 	lea	SetReadPlane(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetReadPlane(a2)
+	move.l	a1,gbi_SetReadPlane(a2)
 	lea	SetClearMask(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetClearMask(a2)
+	move.l	a1,gbi_SetClearMask(a2)
 	lea	WaitVerticalSync(pc),a1
-	move.l	a1,PSSO_BoardInfo_WaitVerticalSync(a2)
-	lea	(Reserved5,pc),a1
-	move.l	a1,(PSSO_BoardInfo_Reserved5,a2)
+	move.l	a1,gbi_WaitVerticalSync(a2)
+	lea	(GetVSyncState,pc),a1
+	move.l	a1,(gbi_GetVSyncState,a2)
 	lea	SetClock(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetClock(a2)
+	move.l	a1,gbi_SetClock(a2)
 	lea	ResolvePixelClock(pc),a1
-	move.l	a1,PSSO_BoardInfo_ResolvePixelClock(a2)
+	move.l	a1,gbi_ResolvePixelClock(a2)
 	lea	GetPixelClock(pc),a1
-	move.l	a1,PSSO_BoardInfo_GetPixelClock(a2)
+	move.l	a1,gbi_GetPixelClock(a2)
 
-	move.l	#113440000,PSSO_BoardInfo_MemoryClock(a2)
+	move.l	#113440000,gbi_MemoryClock(a2)
 
 	; Max pixel clocks (see PixelClockTable for indices)
-	move.l	#16,(PSSO_BoardInfo_PixelClockCount+0,a2)
-	move.l	#16,(PSSO_BoardInfo_PixelClockCount+4,a2)
-	move.l	#12,(PSSO_BoardInfo_PixelClockCount+8,a2)
-	move.l	#9,(PSSO_BoardInfo_PixelClockCount+12,a2)
-	move.l	#7,(PSSO_BoardInfo_PixelClockCount+16,a2)
-;- Planar
-;- Chunky
-;- HiColor
-;- Truecolor
-;- Truecolor + Alpha
+	move.l	#16,(gbi_PixelClockCount+4*PLANAR,a2)
+	move.l	#16,(gbi_PixelClockCount+4*CHUNKY,a2)
+	move.l	#12,(gbi_PixelClockCount+4*HICOLOR,a2)
+	move.l	#9,(gbi_PixelClockCount+4*TRUECOLOR,a2)
+	move.l	#7,(gbi_PixelClockCount+4*TRUEALPHA,a2)
 
-	move.w	#4095,(PSSO_BoardInfo_MaxHorValue+0,a2)
-	move.w	#4095,(PSSO_BoardInfo_MaxVerValue+0,a2)
-	move.w	#4095,(PSSO_BoardInfo_MaxHorValue+2,a2)
-	move.w	#4095,(PSSO_BoardInfo_MaxVerValue+2,a2)
-	move.w	#4095,(PSSO_BoardInfo_MaxHorValue+4,a2)
-	move.w	#4095,(PSSO_BoardInfo_MaxVerValue+4,a2)
-	move.w	#4095,(PSSO_BoardInfo_MaxHorValue+6,a2)
-	move.w	#4095,(PSSO_BoardInfo_MaxVerValue+6,a2)
-	move.w	#4095,(PSSO_BoardInfo_MaxHorValue+8,a2)
-	move.w	#4095,(PSSO_BoardInfo_MaxVerValue+8,a2)
+	move.w	#4095,(gbi_MaxHorValue+2*PLANAR,a2)
+	move.w	#4095,(gbi_MaxVerValue+2*PLANAR,a2)
+	move.w	#4095,(gbi_MaxHorValue+2*CHUNKY,a2)
+	move.w	#4095,(gbi_MaxVerValue+2*CHUNKY,a2)
+	move.w	#4095,(gbi_MaxHorValue+2*HICOLOR,a2)
+	move.w	#4095,(gbi_MaxVerValue+2*HICOLOR,a2)
+	move.w	#4095,(gbi_MaxHorValue+2*TRUECOLOR,a2)
+	move.w	#4095,(gbi_MaxVerValue+2*TRUECOLOR,a2)
+	move.w	#4095,(gbi_MaxHorValue+2*TRUEALPHA,a2)
+	move.w	#4095,(gbi_MaxVerValue+2*TRUEALPHA,a2)
 
-	move.w	#2048,(PSSO_BoardInfo_MaxHorResolution+0,a2)
-	move.w	#2048,(PSSO_BoardInfo_MaxVerResolution+0,a2)
-	move.w	#2048,(PSSO_BoardInfo_MaxHorResolution+2,a2)
-	move.w	#2048,(PSSO_BoardInfo_MaxVerResolution+2,a2)
-	move.w	#2048,(PSSO_BoardInfo_MaxHorResolution+4,a2)
-	move.w	#2048,(PSSO_BoardInfo_MaxVerResolution+4,a2)
-	move.w	#2048,(PSSO_BoardInfo_MaxHorResolution+6,a2)
-	move.w	#2048,(PSSO_BoardInfo_MaxVerResolution+6,a2)
-	move.w	#2048,(PSSO_BoardInfo_MaxHorResolution+8,a2)
-	move.w	#2048,(PSSO_BoardInfo_MaxVerResolution+8,a2)
+	move.w	#2048,(gbi_MaxHorResolution+2*PLANAR,a2)
+	move.w	#2048,(gbi_MaxVerResolution+2*PLANAR,a2)
+	move.w	#2048,(gbi_MaxHorResolution+2*CHUNKY,a2)
+	move.w	#2048,(gbi_MaxVerResolution+2*CHUNKY,a2)
+	move.w	#2048,(gbi_MaxHorResolution+2*HICOLOR,a2)
+	move.w	#2048,(gbi_MaxVerResolution+2*HICOLOR,a2)
+	move.w	#2048,(gbi_MaxHorResolution+2*TRUECOLOR,a2)
+	move.w	#2048,(gbi_MaxVerResolution+2*TRUECOLOR,a2)
+	move.w	#2048,(gbi_MaxHorResolution+2*TRUEALPHA,a2)
+	move.w	#2048,(gbi_MaxVerResolution+2*TRUEALPHA,a2)
 
-	lea	PSSO_BoardInfo_HardInterrupt(a2),a1
+	lea	gbi_HardInterrupt(a2),a1
 	lea	VBL_ISR(pc),a0
 	move.l	a0,IS_CODE(a1)
 	moveq	#INTB_PORTS,d0
 	move.l	$4,a6
 	jsr	_LVOAddIntServer(a6)
 
-	ori.l	#(1<<4),PSSO_BoardInfo_Flags(a2)	; BIF_VBLANKINTERRUPT
+	ori.l	#BIF_VBLANKINTERRUPT,gbi_Flags(a2)
 	lea	SetInterrupt(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetInterrupt(a2)
+	move.l	a1,gbi_SetInterrupt(a2)
 
 	ifd	HasBlitter
-	ori.l	#(1<<15),PSSO_BoardInfo_Flags(a2)	; BIF_BLITTER
+	ori.l	#BIF_BLITTER,gbi_Flags(a2)
 	lea	BlitRectNoMaskComplete(pc),a1
-	move.l	a1,PSSO_BoardInfo_BlitRectNoMaskComplete(a2)
+	move.l	a1,gbi_BlitRectNoMaskComplete(a2)
 	lea	BlitRect(pc),a1
-	move.l	a1,PSSO_BoardInfo_BlitRect(a2)
+	move.l	a1,gbi_BlitRect(a2)
 	lea	WaitBlitter(pc),a1
-	move.l	a1,PSSO_BoardInfo_WaitBlitter(a2)
+	move.l	a1,gbi_WaitBlitter(a2)
 	ENDC
 
 	ifd	HasSprite
-	ori.l	#(1<<0),PSSO_BoardInfo_Flags(a2)	; BIF_HARDWARESPRITE
+	ori.l	#BIF_HARDWARESPRITE,gbi_Flags(a2)
 	lea	SetSprite(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetSprite(a2)
+	move.l	a1,gbi_SetSprite(a2)
 	lea	SetSpritePosition(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetSpritePosition(a2)
+	move.l	a1,gbi_SetSpritePosition(a2)
 	lea	SetSpriteImage(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetSpriteImage(a2)
+	move.l	a1,gbi_SetSpriteImage(a2)
 	lea	SetSpriteColor(pc),a1
-	move.l	a1,PSSO_BoardInfo_SetSpriteColor(a2)
+	move.l	a1,gbi_SetSpriteColor(a2)
 	ENDC
 
 ;	Try to set memory region MMU flags via mmu.library first
-	move.l	PSSO_BoardInfo_MemoryBase(a2),a0
-	move.l	PSSO_BoardInfo_MemorySize(a2),d0
+	move.l	gbi_MemoryBase(a2),a0
+	move.l	gbi_MemorySize(a2),d0
 	move.l	#MAPP_CACHEINHIBIT|MAPP_IMPRECISE|MAPP_NONSERIALIZED,d1
-	move.l	PSSO_BoardInfo_ExecBase(a2),a6
+	move.l	gbi_ExecBase(a2),a6
 	bsr	SetMMU
 	cmp.l	#-1,d0
 	bne.b	.skip
 
 ;	mmu.library failed - let's try with the P96 flags
-	ori.l	#(1<<3),PSSO_BoardInfo_Flags(a2)	; BIF_CACHEMODECHANGE
+	ori.l	#BIF_CACHEMODECHANGE,gbi_Flags(a2)
 .skip
-	move.l	PSSO_BoardInfo_MemoryBase(a2),(PSSO_BoardInfo_MemorySpaceBase,a2)
-	move.l	PSSO_BoardInfo_MemorySize(a2),(PSSO_BoardInfo_MemorySpaceSize,a2)
+	move.l	gbi_MemoryBase(a2),(gbi_MemorySpaceBase,a2)
+	move.l	gbi_MemorySize(a2),(gbi_MemorySpaceSize,a2)
 
-	move.l	#$FFFFFFFF,PSSO_BoardInfo_ChipData(a2)
+	move.l	#$FFFFFFFF,gbi_ChipData(a2)
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a2),a0
+	movea.l	gbi_RegisterBase(a2),a0
 
 	moveq	#-1,d0
 .exit:
@@ -557,21 +550,21 @@ DataTable:
 ;
 ;  NOTE: Return the opposite of the switch-state. BDK
 
-	move.w	PSSO_BoardInfo_MoniSwitch(a0),d1
+	move.w	gbi_MoniSwitch(a0),d1
 	andi.w	#$FFFE,d1
 	tst.b	d0
 	beq.b	.off
 
 	ori.w	#$0001,d1
 .off:
-	move.w	PSSO_BoardInfo_MoniSwitch(a0),d0
+	move.w	gbi_MoniSwitch(a0),d0
 	cmp.w	d0,d1
 	beq.b	.done
 
-	move.w	d1,PSSO_BoardInfo_MoniSwitch(a0)
+	move.w	d1,gbi_MoniSwitch(a0)
 
 	andi.l	#$1,d1
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	move.w	d1,VDE_DisplaySwitch(a0)
 	BUG	"VDE_DisplaySwitch = %lx",d1
 .done:
@@ -588,7 +581,7 @@ DataTable:
 ;  e.g. from chunky to TrueColor. Usually, all you have to do is to set
 ;  the RAMDAC of your board accordingly.
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	move.w	d7,VDE_DisplayFormat(a0)
 	BUG	"VDE_DisplayFormat = %lx",d7
 	rts
@@ -609,50 +602,50 @@ DataTable:
 
 	movem.l	d2-d6,-(sp)
 
-	move.l	a1,PSSO_BoardInfo_ModeInfo(a0)
-	move.w	d0,PSSO_BoardInfo_Border(a0)
+	move.l	a1,gbi_ModeInfo(a0)
+	move.w	d0,gbi_Border(a0)
 	move.w	d0,d4 ; Border
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 
-	move.w	PSSO_ModeInfo_Width(a1),d0
+	move.w	gmi_Width(a1),d0
 	moveq	#0,d1
-	move.b	PSSO_ModeInfo_Depth(a1),d1
+	move.b	gmi_Depth(a1),d1
 	addq.w	#7,d1
 	lsr.w	#3,d1
 	mulu.w	d1,d0
 	move.w	d0,VDE_BytesPerLine(a0)
 	BUG	"VDE_BytesPerLine = %lx",d0
 
-	move.w	PSSO_ModeInfo_HorTotal(a1),d0
+	move.w	gmi_HorTotal(a1),d0
 	subq.w	#1,d0
 	move.w	d0,VDE_HorTotal(a0)
 	BUG	"VDE_HorTotal = %lx",d0
-	move.w	PSSO_ModeInfo_Width(a1),d0
+	move.w	gmi_Width(a1),d0
 ;	subq.w	#1,d0
 	move.w	d0,VDE_HorDisplayEnd(a0)
 	BUG	"VDE_HorDisplayEnd = %lx",d0
-	add.w	PSSO_ModeInfo_HorSyncStart(a1),d0
+	add.w	gmi_HorSyncStart(a1),d0
 	move.w	d0,VDE_HorSyncStart(a0)
 	BUG	"VDE_HorSyncStart = %lx",d0
-	add.w	PSSO_ModeInfo_HorSyncSize(a1),d0
+	add.w	gmi_HorSyncSize(a1),d0
 	move.w	d0,VDE_HorSyncEnd(a0)
 	BUG	"VDE_HorSyncEnd = %lx",d0
-	move.w	PSSO_ModeInfo_VerTotal(a1),d0
+	move.w	gmi_VerTotal(a1),d0
 	subq.w	#1,d0
 	move.w	d0,VDE_VerTotal(a0)
 	BUG	"VDE_VerTotal = %lx",d0
-	move.w	PSSO_ModeInfo_Height(a1),d0
+	move.w	gmi_Height(a1),d0
 	subq.w	#1,d0
 	move.w	d0,VDE_VerDisplayEnd(a0)
 	BUG	"VDE_VerDisplayEnd = %lx",d0
-	add.w	PSSO_ModeInfo_VerSyncStart(a1),d0
+	add.w	gmi_VerSyncStart(a1),d0
 	move.w	d0,VDE_VerSyncStart(a0)
 	BUG	"VDE_VerSyncStart = %lx",d0
-	add.w	PSSO_ModeInfo_VerSyncSize(a1),d0
+	add.w	gmi_VerSyncSize(a1),d0
 	move.w	d0,VDE_VerSyncEnd(a0)
 	BUG	"VDE_VerSyncEnd = %lx",d0
 	moveq	#0,d0
-	move.b	PSSO_ModeInfo_Flags(a1),d0
+	move.b	gmi_Flags(a1),d0
 	move.w	d0,VDE_DisplayFlags(a0)
 	BUG	"VDE_DisplayFlags = %lx",d0
 	movem.l	(sp)+,d2-d6
@@ -679,18 +672,18 @@ DataTable:
 ;	bchg.b	#1,$bfe001
 
 	movem.l	d2-d5,-(sp)
-	move.w	d1,PSSO_BoardInfo_XOffset(a0)
-	move.w	d2,PSSO_BoardInfo_YOffset(a0)
+	move.w	d1,gbi_XOffset(a0)
+	move.w	d2,gbi_YOffset(a0)
 	move.w	d0,d3
 	moveq	#0,d5
 	move.l	a1,d4
 	move.b	.BytesPerPixel(pc,d7.l),d5
 
-	move.l	PSSO_BoardInfo_ModeInfo(a0),a1
+	move.l	gbi_ModeInfo(a0),a1
 
-	sub.w	PSSO_ModeInfo_Width(a1),d0
+	sub.w	gmi_Width(a1),d0
 	mulu.w	d5,d0
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	move.w	d0,VDE_Modulo(a0)
 	BUG	"VDE_Modulo = %lx",d0
 	mulu.w	d2,d3
@@ -799,8 +792,8 @@ DataTable:
 
 ;	BUG	"SetColorArray( %lx / %lx )",d0,d1
 
-	lea	PSSO_BoardInfo_CLUT(a0),a1
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	lea	gbi_CLUT(a0),a1
+	movea.l	gbi_RegisterBase(a0),a0
 	lea	VDE_ColourPalette(a0),a0
 
 ;	adda.w	d0,a1
@@ -873,7 +866,7 @@ DataTable:
 	SetClearMask:
 ;------------------------------------------------------------------------------
 
-	move.b	d0,PSSO_BoardInfo_ClearMask(a0)
+	move.b	d0,gbi_ClearMask(a0)
 	rts
 
 ;------------------------------------------------------------------------------
@@ -883,7 +876,7 @@ DataTable:
 ;  This function waits for the next horizontal retrace.
 	BUG	"WaitVerticalSync"
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	; bit 15 is  VDE active low
 	lea	VDE_DisplayStatus(a0),a0
 	tst.b	d0
@@ -914,11 +907,11 @@ DataTable:
 	rts
 
 ;------------------------------------------------------------------------------
-	Reserved5:
+	GetVSyncState:
 ;------------------------------------------------------------------------------
-;	BUG	"Reserved5"
+;	BUG	"GetVSyncState"
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	btst.b	#7,VDE_DisplayStatus(a0)	;Vertical retrace
 	sne	d0
 	extb.l	d0
@@ -928,11 +921,11 @@ DataTable:
 	SetClock:
 ;------------------------------------------------------------------------------
 
-	movea.l	PSSO_BoardInfo_ModeInfo(a0),a1
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
-	move.b	PSSO_ModeInfo_second_union(a1),d0
+	movea.l	gbi_ModeInfo(a0),a1
+	movea.l	gbi_RegisterBase(a0),a0
+	move.b	gmi_ClockDivide(a1),d0
 	lsl.w	#8,d0
-	move.b	PSSO_ModeInfo_first_union(a1),d0
+	move.b	gmi_Clock(a1),d0
 	move.w	d0,VDE_ClockDivider(a0)
 	BUG	"VDE_ClockDivider = %lx",d0
 	rts
@@ -950,7 +943,7 @@ DataTable:
 	moveq	#0,d3
 	move.b	.rpc_BytesPerPixel(pc,d7.l),d3
 
-	move.l	(PSSO_BoardInfo_PixelClockCount.l,a0,d3.l*4),d2	; should be qualified with d3
+	move.l	(gbi_PixelClockCount.l,a0,d3.l*4),d2	; should be qualified with d3
 	lea	 PixelClockTable(pc),a0
 	moveq	#0,d0						; frequency index
 .loop:
@@ -984,9 +977,9 @@ DataTable:
 .get_current:
 	move.l	(-4,a0),d1
 .done:
-	move.l	d1,PSSO_ModeInfo_PixelClock(a1)
-	move.b	FirstUnionTable(pc,d0.l),PSSO_ModeInfo_first_union(a1)
-	move.b	SecondUnionTable(pc,d0.l),PSSO_ModeInfo_second_union(a1)
+	move.l	d1,gmi_PixelClock(a1)
+	move.b	FirstUnionTable(pc,d0.l),gmi_Clock(a1)
+	move.b	SecondUnionTable(pc,d0.l),gmi_ClockDivide(a1)
 	movem.l	(sp)+,d2/d3
 	rts
 
@@ -1112,7 +1105,7 @@ PixelClockTable:
 
 ;	bchg.b	#1,$bfe001
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a1
+	movea.l	gbi_RegisterBase(a0),a1
 	tst.b	d0
 	beq.b	.disable
 
@@ -1137,7 +1130,7 @@ PixelClockTable:
 ;------------------------------------------------------------------------------
 
 	movem.l	a1/a6,-(sp)
-	movea.l	PSSO_BoardInfo_RegisterBase(a1),a6
+	movea.l	gbi_RegisterBase(a1),a6
 
 	move.w	VDE_InterruptEnable(a6),d0
 	tst.b	d0
@@ -1147,8 +1140,8 @@ PixelClockTable:
 	andi.w	#$0001,d0
 	beq.b	.no_soft_int
 
-	movea.l	PSSO_BoardInfo_ExecBase(a1),a6
-	lea	PSSO_BoardInfo_SoftInterrupt(a1),a1
+	movea.l	gbi_ExecBase(a1),a6
+	lea	gbi_SoftInterrupt(a1),a1
 	jsr	_LVOCause(a6)
 
 ;	bchg.b	#1,$bfe001
@@ -1178,7 +1171,7 @@ PixelClockTable:
 ;	BUG "d0 = %ld",d0
 ;	BUG "d7 = %ld",d7
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	andi.w	#1,d0
 	move.w	d0,VDE_SpriteControl(a0)
 	BUG	"VDE_SpriteControl = %lx",d0
@@ -1196,11 +1189,11 @@ PixelClockTable:
 ;	BUG "a0 = %lx",a0
 ;	BUG "d7 = %ld",d7
 
-	move.w	PSSO_BoardInfo_MouseX(a0),d0
-	move.w	PSSO_BoardInfo_MouseY(a0),d1
-	sub.w	PSSO_BoardInfo_XOffset(a0),d0
-	sub.w	PSSO_BoardInfo_YOffset(a0),d1
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	move.w	gbi_MouseX(a0),d0
+	move.w	gbi_MouseY(a0),d1
+	sub.w	gbi_XOffset(a0),d0
+	sub.w	gbi_YOffset(a0),d1
+	movea.l	gbi_RegisterBase(a0),a0
 
 ;	BUG "X = %d",d0
 
@@ -1248,19 +1241,19 @@ PixelClockTable:
 
 
 	moveq	#0,d1
-	movea.l	PSSO_BoardInfo_MouseImage(a0),a1
-	move.b	PSSO_BoardInfo_MouseHeight(a0),d1
-	move.l	PSSO_BoardInfo_Flags(a0),d0
+	movea.l	gbi_MouseImage(a0),a1
+	move.b	gbi_MouseHeight(a0),d1
+	move.l	gbi_Flags(a0),d0
 	andi.l	#$00010000,d0 ; BIF_HIRESSPRITE
 	bne	SetMouseImage_Hires
 
-	move.l	PSSO_BoardInfo_Flags(a0),d0
+	move.l	gbi_Flags(a0),d0
 	andi.l	#$00020000,d0 ; BIF_BIGSPRITE
 	bne	SetMouseImage_Big
 
 SetMouseImage_Normal:
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	lea	(4,a1),a1
 	lea	VDE_SpriteImage(a0),a0
 	cmpi.w	#64,d1
@@ -1294,7 +1287,7 @@ SetMouseImage_ClearBuffer:
 
 SetMouseImage_Hires:
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	lea	(8,a1),a1
 	lea	VDE_SpriteImage(a0),a0
 	cmpi.w	#64,d1
@@ -1322,7 +1315,7 @@ SetMouseImage_Hires:
 SetMouseImage_Big:
 
 	movem.l	d2/d3,-(sp)
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	lea	(4,a1),a1
 	lea	VDE_SpriteImage(a0),a0
 	asr.w	#1,d1
@@ -1402,7 +1395,7 @@ Scale2X:
 ;	BUG "d3 = %ld",d3
 ;	BUG "d7 = %ld",d7
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	lsl.w	#8,d1
 	move.b	d2,d1
 	lsl.l	#8,d1
@@ -1496,7 +1489,7 @@ Scale2X:
 
 	mulu.w	d7,d4	; W * BPP
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 
 	moveq	#0,d6
 	move.w	(4,a1),d6	; RenderInfo.BytesPerRow
@@ -1582,7 +1575,7 @@ Scale2X:
 
 ;	BUG "*
 	movem.l	(sp)+,d0-d7/a0-a3
-	move.l	PSSO_BoardInfo_BlitRectNoMaskCompleteDefault(a0),-(a7)
+	move.l	gbi_BlitRectNoMaskCompleteDefault(a0),-(a7)
 	rts
 
 
@@ -1622,7 +1615,7 @@ Scale2X:
 	bsr	GetBytesPerPixel
 
 	moveq	#0,d6
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 	move.w	(4,a1),d6	; RenderInfo.BytesPerRow
 ;	BUG "RenderInfo.BytesPerRow = %d",d6
 	move.l	(a1),a1		; Memory
@@ -1738,7 +1731,7 @@ Scale2X:
 
 ;	BUG "WaitBlitter()"
 
-	movea.l	PSSO_BoardInfo_RegisterBase(a0),a0
+	movea.l	gbi_RegisterBase(a0),a0
 .wait:
 	move.w	VBE_STATUS(a0),d0
 	bmi	.wait
