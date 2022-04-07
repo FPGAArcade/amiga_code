@@ -57,13 +57,13 @@
 		ENDC
 	ENDC
 
-VERSION		EQU 4
+VERSION		EQU 1
 REVISION	EQU 0
 DATE	MACRO
-		dc.b	"05.08.2020"
+		dc.b	"7.4.2022"
 	ENDM
 VERS	MACRO
-		dc.b	"replay.audio 0.4"
+		dc.b	"replay.audio 1.0"
 	ENDM
 
 VSTRING	MACRO
@@ -754,7 +754,7 @@ RomTag:
 	dc.l	RomTag
 	dc.l	EndCode
 	dc.b	RTF_AUTOINIT
-	dc.b	VERSION
+	dc.b	4 						;AHI VERSION
 	dc.b	NT_LIBRARY
 	dc.b	0						;pri
 	dc.l	LibName
@@ -2454,7 +2454,7 @@ ga_Copyright:
 	lea		.copyright(pc),a0
 	move.l	a0,d0
 	rts
-.copyright	dc.b	"ï¿½ 2017 All rights reserved",0
+.copyright	dc.b	"© 2022 All rights reserved",0
 	even
 
 ga_Version:
