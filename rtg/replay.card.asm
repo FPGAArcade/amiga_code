@@ -13,6 +13,10 @@
 ;
 ;
 
+; 2.1    - Use official P96 struct definitions
+;           Support the new meaning of BIF_CACHEMODECHANGE (no fallback for MMU)
+;           Warn (RECOVERY_ALERT) if missing mmu.library / failed MMU operation
+;           Fix incorrect MMU memory region fitting
 ; 2.0    - Embed Replay.card inside replay.com
 ; 1.26   - Set pixelclocks for 24bit TrueColor
 ; 1.25   - Use mmu.library to set MMU cache mode (if available) (eriQue)
@@ -180,7 +184,7 @@ ReplayCard:
 	dc.b	'Replay.card',0,0
 	dc.b	'$VER: '
 IDString:
-	dc.b	'Replay.card 2.0 (15.3.2022)',0
+	dc.b	'Replay.card 2.1 (7.4.2022)',0
 	dc.b	0
 expansionLibName:
 	dc.b	'expansion.library',0
@@ -206,7 +210,7 @@ DataTable:
 	INITLONG	LN_NAME,ReplayCard
 	INITBYTE	LIB_FLAGS,LIBF_SUMUSED|LIBF_CHANGED
 	INITWORD	LIB_VERSION,2
-	INITWORD	LIB_REVISION,0
+	INITWORD	LIB_REVISION,1
 	INITLONG	LIB_IDSTRING,IDString
 	INITLONG	card_Name,CardName
 	dc.w		0,0
