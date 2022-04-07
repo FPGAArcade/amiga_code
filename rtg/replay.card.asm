@@ -64,10 +64,12 @@ SYSTEM_INCLUDES
 	incdir  asm_include:
 	include lvo/exec_lib.i
 	include lvo/expansion_lib.i
+	include lvo/intuition_lib.i
 	include exec/exec.i
 	include libraries/expansionbase.i
 	include hardware/intbits.i
 	include utility/tagitem.i
+	include intuition/intuition.i
 	ENDC
 
 ;debug
@@ -513,18 +515,57 @@ DataTable:
 	move.l	a1,gbi_SetSpriteColor(a2)
 	ENDC
 
+;	Only bother with MMU flags if there is a (real) 68060 present
+;	A softcore CPU is fully snooped, so no need..
+	move.l	gbi_ExecBase(a2),a6
+	btst	#7,AttnFlags+1(a6)	; AFB_68060
+	beq	.skipCM
+
 ;	Try to set memory region MMU flags via mmu.library first
 	move.l	gbi_MemoryBase(a2),a0
 	move.l	gbi_MemorySize(a2),d0
 	move.l	#MAPP_CACHEINHIBIT|MAPP_IMPRECISE|MAPP_NONSERIALIZED,d1
-	move.l	gbi_ExecBase(a2),a6
 	bsr	SetMMU
 	cmp.l	#-1,d0
-	bne.b	.skip
+	bne	.skipCM
 
-;	mmu.library failed - let's try with the P96 flags
+	BUG	"mmu.library failed"
+
+;	Ok, no mmu.library - let's try with the P96 flag BIF_CACHEMODECHANGE
+;	This is however not supported since P96 v3.2.4 (rtg.library 42.1226)
+;	Let's check the currently running rtg.library version and warn the user if that's the case
+
+	moveq.l	#42,d0
+	lea	.rtgName(pc),a1
+	CALLLIB	_LVOOpenLibrary (libName, version)
+
+	tst.l	d0
+	bne.b	.gotRTG
+
+	BUG	"Unable to open rtg.library v42"
+	bra.b	.changeCM
+
+.gotRTG:
+	movea.l	d0,a1
+	move.w	LIB_REVISION(a1),-(sp)
+	move.w	LIB_VERSION(a1),-(sp)
+	CALLLIB	_LVOCloseLibrary (library)
+
+	move.l	(sp)+,d0	; <LIB_VERSION> | <LIB_REVISION>
+
+	BUG	"P96 / rtg.library %d.%d",d0
+
+	cmpi.l	#(42<<16)|(1226),d0
+	blt.b	.changeCM
+
+	BUG	"rtg.library 42.1226 and later - show alert!"
+	bra.b	.errorMMU
+
+.changeCM:
+	BUG	"Using BIF_CACHEMODECHANGE to change MMU flags for %lx/%lx", gbi_MemoryBase(a2), gbi_MemorySize(a2)
 	ori.l	#BIF_CACHEMODECHANGE,gbi_Flags(a2)
-.skip
+
+.skipCM
 	move.l	gbi_MemoryBase(a2),(gbi_MemorySpaceBase,a2)
 	move.l	gbi_MemorySize(a2),(gbi_MemorySpaceSize,a2)
 
@@ -536,6 +577,29 @@ DataTable:
 .exit:
 	movem.l	(sp)+,a2/a5/a6
 	rts
+
+.errorMMU:
+	moveq.l	#37,d0
+	lea.l	.intuiName(pc),a1
+	CALLLIB	_LVOOpenLibrary (libName, version)
+	tst.l	d0
+	beq.b	.skipCM
+
+	movea.l	d0,a6
+	moveq.l	#RECOVERY_ALERT,d0
+	lea.l	.noMMUmsg(pc),a0
+	moveq.l	#30,d1
+	CALLLIB	_LVODisplayAlert ( AlertNumber, String, Height )
+
+	movea.l	a6,a1
+	CALLLIB	_LVOCloseLibrary (library)
+
+	bra.b	.skipCM
+
+.rtgName:	dc.b	'rtg.library',0
+.intuiName:	dc.b	'intuition.library',0
+.noMMUmsg       dc.b    $00, $28, $10, "Replay.card with P96 v3.2.4+ (rtg.library 42.1226) requires mmu.library", $00, $00
+        	even
 
 ;------------------------------------------------------------------------------
 	SetSwitch:
