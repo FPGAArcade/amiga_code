@@ -11,7 +11,7 @@
 ;
 ;
 
-; REPLAY XAUDIO AHI DRIVER - RELEASE 0.3ß
+; REPLAY XAUDIO AHI DRIVER - RELEASE 0.3ï¿½
 ;------------
 
 ; General register allocation :
@@ -956,18 +956,27 @@ _LVORebuildTreesA           	EQU	-360
 	; adjust address and size to match page size
 		movem.l	(sp),d0/d1
 
+	kprintf	"Requested region   = %lx,%lx",d1,d0
+
+		subq.l	#1,d7
 		move.l	d7,d6
-		subq.l	#1,d6
 		not.l	d6
-		move.l	d1,d2
+		add.l	d1,d0
+		add.l	d7,d1
 		and.l	d6,d1
-		sub.l	d1,d2
-		add.l	d2,d0
-		add.l	d7,d0
 		and.l	d6,d0
+		sub.l	d1,d0
 
-	kprintf	"Lower / Size       = %lx,%lx",d1,d0
+	kprintf	"Aligned region     = %lx,%lx",d1,d0
 
+		tst.l	d0
+		bne.b	.sizeok
+
+	kprintf	"Size is 0!"
+		pea	.nommu(pc)
+		bra	.failed
+
+.sizeok
 		movem.l	d0/d1,(sp)		; (sp),4(sp) = adjusted size/addr
 
 	; Lock contexts
@@ -1213,10 +1222,10 @@ PrintAudioCtrl:
 
 .AHIST_M8S	dc.b  "AHIST_M8S  = Mono, 8 bit signed (BYTE)",0
 .AHIST_M16S	dc.b  "AHIST_M16S = Mono, 16 bit signed (WORD)",0
-.AHIST_S8S	dc.b  "AHIST_S8S  = Stereo, 8 bit signed (2×BYTE)",0
-.AHIST_S16S	dc.b  "AHIST_S16S = Stereo, 16 bit signed (2×WORD)",0
+.AHIST_S8S	dc.b  "AHIST_S8S  = Stereo, 8 bit signed (2ï¿½BYTE)",0
+.AHIST_S16S	dc.b  "AHIST_S16S = Stereo, 16 bit signed (2ï¿½WORD)",0
 .AHIST_M32S	dc.b  "AHIST_M32S = Mono, 32 bit signed (LONG)",0
-.AHIST_S32S	dc.b  "AHIST_S32S = Stereo, 32 bit signed (2×LONG)",0
+.AHIST_S32S	dc.b  "AHIST_S32S = Stereo, 32 bit signed (2ï¿½LONG)",0
 .AHIST_UNK	dc.b  "Unknown",0
 	even
 	ELSE
@@ -1298,19 +1307,19 @@ PrintAudioCtrl:
 *       1) Use mixing routines with timing:
 *           You will need to be able to play any number of samples from
 *           about 80 up to 65535 with low overhead.
-*           · Update AudioCtrl->ahiac_MixFreq to nearest value that your
+*           ï¿½ Update AudioCtrl->ahiac_MixFreq to nearest value that your
 *             hardware supports.
-*           · Return AHISF_MIXING|AHISF_TIMING.
+*           ï¿½ Return AHISF_MIXING|AHISF_TIMING.
 *
 *       2) Use mixing routines without timing:
 *           If the hardware can't play samples with any length, use this
 *           alternative and provide timing yourself. The buffer must
 *           take less than about 20 ms to play, preferable less than 10!
-*           · Update AudioCtrl->ahiac_MixFreq to nearest value that your
+*           ï¿½ Update AudioCtrl->ahiac_MixFreq to nearest value that your
 *             hardware supports.
-*           · Store the number of samples to mix each pass in
+*           ï¿½ Store the number of samples to mix each pass in
 *             AudioCtrl->ahiac_BuffSamples.
-*           · Return AHISF_MIXING
+*           ï¿½ Return AHISF_MIXING
 *           Alternatively, you can use the first method and call the
 *           mixing hook several times in a row to fill up a buffer.
 *           In that case, AHIsub_GetAttr(AHIDB_MaxPlaySamples) should
@@ -2220,7 +2229,7 @@ AHIsub_Stop:
 *               "Martin 'Leviticus' Blom"
 *
 *           AHIDB_Copyright - Return pointer to copyright notice, including
-*               the '©' character: "© 1996 Martin Blom" or "Public Domain"
+*               the 'ï¿½' character: "ï¿½ 1996 Martin Blom" or "Public Domain"
 *
 *           AHIDB_Version - Return pointer version string, normal Amiga
 *               format: "paula 1.5 (18.2.96)\r\n"
@@ -2432,7 +2441,7 @@ ga_Copyright:
 	lea		.copyright(pc),a0
 	move.l	a0,d0
 	rts
-.copyright	dc.b	"© 2017 All rights reserved",0
+.copyright	dc.b	"ï¿½ 2017 All rights reserved",0
 	even
 
 ga_Version:
