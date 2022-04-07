@@ -181,6 +181,9 @@ FALSE	EQU	0
 	ULONG	r_TimerFreq			; -- " --
 	ULONG	r_TimerCalibrate		; -- " --
 
+	ULONG	r_ProcessTimeSum		; Calc process time avg
+	ULONG	r_ProcessTimeCounter
+
 	LABEL	replay_SIZEOF
 
 Start:
@@ -2787,7 +2790,8 @@ ec_init:
 		move.l	rb_TimerLib(a5),a6
 		jsr	_LVOReadEClock(a6)
 
-		lea	ec_tmp(pc),a0
+		lea	-EV_SIZE(sp),sp
+		movea.l	sp,a0
 		moveq.l	#(1<<5)-1,d7
 .calibrate	jsr	_LVOReadEClock(a6)
 		dbf	d7,.calibrate
@@ -2800,6 +2804,7 @@ ec_init:
 		lsr.l	#5,d0
 		move.l	d0,r_TimerCalibrate(a3)
 
+		lea	EV_SIZE(sp),sp
 		movem.l	(sp)+,d0/d7/a0/a6
 		bra.b	ec_reset
 
@@ -2816,7 +2821,8 @@ ec_readconv_us:	; ( returns microseconds d0:d1  )
 *d2	eclock frequency
 ec_read:
 		movem.l	a0/a6,-(sp)
-		lea	ec_tmp(pc),a0
+		lea	-EV_SIZE(sp),sp
+		movea.l	sp,a0
 		move.l	rb_TimerLib(a5),a6
 		jsr	_LVOReadEClock(a6)
 		move.l	(a0)+,d0
@@ -2834,6 +2840,7 @@ ec_read:
 		moveq.l	#1,d1
 
 .done		move.l	r_TimerFreq(a3),d2
+		lea	EV_SIZE(sp),sp
 		movem.l	(sp)+,a0/a6
 		bra.b	ec_reset
 		
@@ -2854,8 +2861,6 @@ ec_reset
 		jsr	_LVOReadEClock(a6)
 		movem.l	(sp)+,d0-d2/a0/a6
 		rts
-
-ec_tmp		ds.l	2
 
 *************************************************************************
 
@@ -2915,15 +2920,15 @@ PlayerFunc:
 		bsr.b	FillOutputBuffer_entry
 
 		bsr.w	ec_readconv_us
-		add.l	d1,.processTimeSum
-		add.l	#1,.processTimeCnt
-		cmp.l	#50,.processTimeCnt
+		add.l	d1,r_ProcessTimeSum(a3)
+		add.l	#1,r_ProcessTimeCounter(a3)
+		cmp.l	#50,r_ProcessTimeCounter(a3)
 		bne.b	.notyet
-		move.l	.processTimeSum(pc),d0
+		move.l	r_ProcessTimeSum(a3),d0
 		divu.l	#50,d0
 	kprintf	"Average process time = %ld us",d0
-		clr.l	.processTimeSum
-		clr.l	.processTimeCnt
+		clr.l	r_ProcessTimeSum(a3)
+		clr.l	r_ProcessTimeCounter(a3)
 .notyet
 
 .exit
@@ -2931,9 +2936,6 @@ PlayerFunc:
 		movem.l	(sp)+,d2-d7/a2-a6
 .exitxx		rts
 
-
-.processTimeSum	dc.l	0
-.processTimeCnt	dc.l	0
 
 
 FillOutputBuffer_entry:
