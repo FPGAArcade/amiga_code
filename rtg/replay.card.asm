@@ -1839,18 +1839,25 @@ _LVORebuildTreesA           	EQU	-360
 
 	BUG	"Requested region   = %lx,%lx",d1,d0
 
+		subq.l	#1,d7
 		move.l	d7,d6
-		subq.l	#1,d6
 		not.l	d6
-		move.l	d1,d2
+		add.l	d1,d0
+		add.l	d7,d1
 		and.l	d6,d1
-		sub.l	d1,d2
-		add.l	d2,d0
-		add.l	d7,d0
 		and.l	d6,d0
+		sub.l	d1,d0
 
 	BUG	"Aligned region     = %lx,%lx",d1,d0
 
+		tst.l	d0
+		bne.b	.sizeok
+
+	BUG	"Size is 0!"
+		pea	.nommu(pc)
+		bra	.failed
+
+.sizeok
 		movem.l	d0/d1,(sp)		; (sp),4(sp) = adjusted size/addr
 
 	; Lock contexts
