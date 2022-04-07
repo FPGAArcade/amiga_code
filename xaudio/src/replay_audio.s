@@ -2155,7 +2155,7 @@ AHIsub_Stop:
 	beq.b	.nooutputbuffer
 
 	; reset mmu flags
-	move.l	r_MMUFlags,d1
+	move.l	r_MMUFlags(a3),d1
 	cmp.l	#-1,d1
 	beq.b	.nommu
 	move.l	d0,a0
