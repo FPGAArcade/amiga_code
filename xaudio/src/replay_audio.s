@@ -2158,8 +2158,8 @@ AHIsub_Stop:
 	move.l	r_MMUFlags(a3),d1
 	cmp.l	#-1,d1
 	beq.b	.nommu
-	move.l	d0,a0
-	move.l	r_OutputBufferSize(a3),d1
+	move.l	r_OutputBufferAligned(a3),a0
+	move.l	r_OutputBufferSize(a3),d0
 	bsr	SetMMU
 	move.l	r_OutputBuffer(a3),d0
 .nommu
