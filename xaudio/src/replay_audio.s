@@ -90,7 +90,7 @@ VERSTAG	MACRO
 	include kprintf.i
 
 *************************************************************************
-
+	NOLIST
 	incdir	include:
 	incdir	sys:code/ndk_3.9/include/include_i/
 
@@ -106,6 +106,7 @@ VERSTAG	MACRO
 	include	lvo/exec_lib.i
 	include	lvo/expansion_lib.i
 	include	lvo/timer_lib.i
+	LIST
 
 *************************************************************************
 
@@ -802,6 +803,7 @@ RomTag:
 ; in D0.  The segment list is in A0.  If it returns non-zero then the library will be
 ; linked into the library list.
 .initRoutine:	; ( libptr:d0 seglist:a0 )
+	kprintf	"replay.audio/initRoutine"
 		movem.l	d1/a0/a1/a5/a6,-(sp)
 
 		move.l	d0,a5
@@ -883,7 +885,6 @@ GetBoardAddr:	; ( exec:a6 )
 SetMMU	; ( addr:a0 size:d0 flags:d1 exec:a6 )
 	; returns old flags in d0/d1
 	; ( d0-d1/a0-a1 are scratch )
-	kprintf	"SetMMU %lx %lx %lx (exec = %lx)",a0,d0,d1,a6
 
 MAPP_CACHEINHIBIT       equ     (1<<6)
 MAPP_COPYBACK           equ     (1<<13)
@@ -906,6 +907,8 @@ _LVOUnlockContextList       	EQU	-216
 _LVOSetPropertyList         	EQU	-228
 _LVORebuildTreesA           	EQU	-360
 
+	kprintf	"SetMMU(addr:%lx size:%lx flags:%lx)",a0,d0,d1
+
 		movem.l	d2-d7/a2-a5,-(sp)
 
 		movem.l	d0/a0,-(sp)		; (sp),4(sp) = size,addr
@@ -927,6 +930,7 @@ _LVORebuildTreesA           	EQU	-360
 		tst.b	d0
 		bne.b	.mmu_ok
 
+	kprintf	"GetMMUType         = <none>"
 		pea	.nommu(pc)
 		bra	.failed
 
@@ -1128,6 +1132,7 @@ _LVORebuildTreesA           	EQU	-360
 ; then null is returned.  It might fail if we allocated memory on each open, or if only
 ; open application could have the library open at a time...
 LIB_Open:	; ( libptr:a6, version:d0 ; returns libptr:d0, if successful)
+	kprintf	"replay.audio/LIB_Open"
 		addq.w	#1,LIB_OPENCNT(a6)
 		bclr.b	#LIBB_DELEXP,rb_Flags(a6)
 		move.l	a6,d0
@@ -1138,6 +1143,7 @@ LIB_Open:	; ( libptr:a6, version:d0 ; returns libptr:d0, if successful)
 ; segment list (as given to Init).  Otherwise close should return NULL.
 
 LIB_Close:	; ( libptr:a6 ; returns 0:d0 or seglist:d0 )
+	kprintf	"replay.audio/LIB_Close"
 		moveq	#0,d0
 		subq.w	#1,LIB_OPENCNT(a6)
 		bne.b	.exit
@@ -1155,6 +1161,7 @@ LIB_Close:	; ( libptr:a6 ; returns 0:d0 or seglist:d0 )
 ; NEVER Wait() or otherwise take long time to complete.
 
 LIB_Expunge:	; ( libptr: a6 ; returns 0:d0 or seglist:d0 )
+	kprintf	"replay.audio/LIB_Expunge"
 		movem.l	d1/d2/a0/a1/a5/a6,-(sp)
 		move.l	a6,a5
 		move.l	rb_SysLib(a5),a6
@@ -1182,6 +1189,7 @@ LIB_Expunge:	; ( libptr: a6 ; returns 0:d0 or seglist:d0 )
 		rts
 
 LIB_ExtFunc:
+	kprintf	"replay.audio/LIB_ExtFunc"
 		moveq	#0,d0
 		rts
 
@@ -1227,10 +1235,10 @@ PrintAudioCtrl:
 
 .AHIST_M8S	dc.b  "AHIST_M8S  = Mono, 8 bit signed (BYTE)",0
 .AHIST_M16S	dc.b  "AHIST_M16S = Mono, 16 bit signed (WORD)",0
-.AHIST_S8S	dc.b  "AHIST_S8S  = Stereo, 8 bit signed (2�BYTE)",0
-.AHIST_S16S	dc.b  "AHIST_S16S = Stereo, 16 bit signed (2�WORD)",0
+.AHIST_S8S	dc.b  "AHIST_S8S  = Stereo, 8 bit signed (2xBYTE)",0
+.AHIST_S16S	dc.b  "AHIST_S16S = Stereo, 16 bit signed (2xWORD)",0
 .AHIST_M32S	dc.b  "AHIST_M32S = Mono, 32 bit signed (LONG)",0
-.AHIST_S32S	dc.b  "AHIST_S32S = Stereo, 32 bit signed (2�LONG)",0
+.AHIST_S32S	dc.b  "AHIST_S32S = Stereo, 32 bit signed (2xLONG)",0
 .AHIST_UNK	dc.b  "Unknown",0
 	even
 	ELSE
