@@ -1783,7 +1783,7 @@ _LVORebuildTreesA           	EQU	-360
 		beq.b	.done
 		movea.l	d0,a0
 
-		cmp.w	#46,LIB_VERSION(a0)
+		cmp.w	#43,LIB_VERSION(a0)
 		blt.b	.retry
 
 .done

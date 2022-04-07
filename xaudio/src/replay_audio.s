@@ -906,7 +906,7 @@ _LVORebuildTreesA           	EQU	-360
 		movem.l	d0/a0,-(sp)		; (sp),4(sp) = size,addr
 		move.l	d1,a3			; a3 = flags
 
-		moveq.l	#41,d0
+		moveq.l	#43,d0
 		lea	.mmuName,a1
 		CALLLIB	_LVOOpenLibrary
 	kprintf	"mmu.library        = %lx",d0
