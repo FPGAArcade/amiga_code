@@ -126,6 +126,8 @@ XAUD_CTRLH	= $001c
 XAUD_CTRLL	= $001e
 MEMF_REPLAY	= (1<<14)
 
+DMA_ALIGN	= (1<<12)	; 4k page size
+
 *************************************************************************
 
 TRUE	EQU	1
@@ -1900,10 +1902,10 @@ AHIsub_Start:
 ;	move.l	ahiac_MaxBuffSamples(a2),d0
 ;	add.l	d0,d0					; buffer 2x sample speed
 	lsl.l	#2,d0					; multiply by 4 because output is always 16 bit stereo
-	addi.l	#15,d0					; need 16byte alignment size
-	andi.l	#~15,d0
+	addi.l	#DMA_ALIGN-1,d0				; need aligned size
+	andi.l	#~(DMA_ALIGN-1),d0
 	move.l	d0,r_OutputBufferSize(a3)
-	addi.l	#15,d0					; need 16byte alignment ptr
+	addi.l	#DMA_ALIGN-1,d0				; need aligned ptr
 	move.l	#MEMF_PUBLIC|MEMF_CLEAR|MEMF_REPLAY,d1
 	CALLLIB	_LVOAllocVec
 	move.l	d0,r_OutputBuffer(a3)
@@ -1911,15 +1913,15 @@ AHIsub_Start:
 
 	kprintf	"WARNING : unable to allocate REPLAY memory"
 	move.l	r_OutputBufferSize(a3),d0
-	addi.l	#15,d0					; need 16byte alignment ptr
+	addi.l	#DMA_ALIGN-1,d0				; need aligned ptr
 	move.l	#MEMF_PUBLIC|MEMF_CLEAR|MEMF_24BITDMA,d1
 	CALLLIB	_LVOAllocVec
 	move.l	d0,r_OutputBuffer(a3)
 	beq	.error_nomem
 
 .memory_ok:
-	addi.l	#15,d0
-	andi.l	#~15,d0
+	addi.l	#DMA_ALIGN-1,d0
+	andi.l	#~(DMA_ALIGN-1),d0
 	move.l	d0,r_OutputBufferAligned(a3)
 
 
