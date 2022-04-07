@@ -1765,6 +1765,8 @@ _LVOUnlockContextList       	EQU	-216
 _LVOSetPropertyList         	EQU	-228
 _LVORebuildTreesA           	EQU	-360
 
+	BUG	"SetMMU(addr:%lx size:%lx flags:%lx)",a0,d0,d1
+
 		movem.l	d2-d7/a2-a5,-(sp)
 
 		movem.l	d0/a0,-(sp)		; (sp),4(sp) = size,addr
@@ -1787,6 +1789,7 @@ _LVORebuildTreesA           	EQU	-360
 .done
 		PERMIT
 
+	BUG	"mmu.library        = %lx",d2
 		tst.l	d2
 		bne.b	.mmulib_ok
 
@@ -1799,25 +1802,31 @@ _LVORebuildTreesA           	EQU	-360
 		tst.b	d0
 		bne.b	.mmu_ok
 
+	BUG	"GetMMUType         = <none>"
 		pea	.nommu(pc)
 		bra	.failed
 
 .mmu_ok
 		sub.b	#'0',d0
+	BUG	"GetMMUType         = 680%ld0",d0
 
 	; Get contexts
 		CALLLIB	_LVODefaultContext
+	BUG	"DefaultContext     = %lx",d0
 		movea.l	d0,a5			; a5 = ctx
 		move.l	d0,a0
 		CALLLIB	_LVOSuperContext
+	BUG	"SuperContext       = %lx",d0
 		movea.l	d0,a4			; a4 = sctx
 
 		move.l	a5,d0
 		CALLLIB	_LVOGetPageSize
+	BUG	"GetPageSize (ctx)  = %lx (%ld bytes)",d0,d0
 		move.l	d0,d7			; d7 = pagesize
 
 		move.l	a4,d0
 		CALLLIB	_LVOGetPageSize
+	BUG	"GetPageSize (sctx) = %lx (%ld bytes)",d0,d0
 		cmp.l	d0,d7
 		beq.b	.page_ok
 
@@ -1828,6 +1837,8 @@ _LVORebuildTreesA           	EQU	-360
 	; adjust address and size to match page size
 		movem.l	(sp),d0/d1
 
+	BUG	"Requested region   = %lx,%lx",d1,d0
+
 		move.l	d7,d6
 		subq.l	#1,d6
 		not.l	d6
@@ -1837,6 +1848,8 @@ _LVORebuildTreesA           	EQU	-360
 		add.l	d2,d0
 		add.l	d7,d0
 		and.l	d6,d0
+
+	BUG	"Aligned region     = %lx,%lx",d1,d0
 
 		movem.l	d0/d1,(sp)		; (sp),4(sp) = adjusted size/addr
 
@@ -1850,6 +1863,7 @@ _LVORebuildTreesA           	EQU	-360
 	; Get mapping
 		move.l	a5,a0
 		CALLLIB	_LVOGetMapping (ctx)
+	BUG	"ctx mapping        = %lx",d0
 		move.l	d0,d5			; d5 = ctx mapping
 		bne.b	.ctx_ok
 
@@ -1858,6 +1872,7 @@ _LVORebuildTreesA           	EQU	-360
 
 .ctx_ok		move.l	a4,a0
 		CALLLIB	_LVOGetMapping (sctx)
+	BUG	"sctx mapping       = %lx",d0
 		move.l	d0,d4			; d4 = ctx mapping
 		bne.b	.sctx_ok
 
@@ -1869,7 +1884,9 @@ _LVORebuildTreesA           	EQU	-360
 		move.l	a5,a0
 		move.l	d7,a1
 		lea	.tagDone,a2
+	BUG	"GetPropertiesA     = %lx,%lx,%lx",a0,a1,(a2)
 		CALLLIB	_LVOGetPropertiesA (ctx,from,TAG_DONE)
+	BUG	"GetPropertiesA     => %lx",d0
 		move.l	d0,(sp)			; (sp) = old flags (ctx)
 
 		move.l	a5,a0
@@ -1878,6 +1895,7 @@ _LVORebuildTreesA           	EQU	-360
 		move.l	d6,d0
 		move.l	d7,a1
 		lea	.tagDone(pc),a2
+	BUG	"SetPropertiesA     = %lx,%lx,%lx %lx,%lx %lx",a0,d1,d2,a1,d0,(a2)
 		CALLLIB	_LVOSetPropertiesA (ctx,flags,mask,from,size,TAG_DONE)
 		tst.b	d0
 		beq	.revert
@@ -1886,7 +1904,9 @@ _LVORebuildTreesA           	EQU	-360
 		move.l	d7,a1
 		movem.l	(sp),d0/a1
 		lea	.tagDone,a2
+	BUG	"GetPropertiesA     = %lx,%lx,%lx",a0,a1,(a2)
 		CALLLIB	_LVOGetPropertiesA (sctx,from,TAG_DONE)
+	BUG	"GetPropertiesA     => %lx",d0
 		move.l	d0,4(sp)		; 4(sp) = old flags (sctx)
 
 		move.l	a4,a0
@@ -1895,6 +1915,7 @@ _LVORebuildTreesA           	EQU	-360
 		move.l	d6,d0
 		move.l	d7,a1
 		lea	.tagDone(pc),a2
+	BUG	"SetPropertiesA     = %lx,%lx,%lx %lx,%lx %lx",a0,d1,d2,a1,d0,(a2)
 		CALLLIB	_LVOSetPropertiesA (sctx,flags,mask,from,size,TAG_DONE)
 		tst.b	d0
 		beq	.revert
@@ -1904,6 +1925,7 @@ _LVORebuildTreesA           	EQU	-360
 		move.l	a4,4(sp)
 		clr.l	8(sp)
 		move.l	sp,a0
+	BUG	"RebuildTreesA      = %lx,%lx,%lx",(a0),4(a0),8(a0)
 		CALLLIB	_LVORebuildTreesA (ctx,sctx,NULL)
 		add.w	#4*3,sp
 		tst.b	d0
@@ -1913,47 +1935,58 @@ _LVORebuildTreesA           	EQU	-360
 		pea	.cleanup(pc)
 		move.l	a5,a0
 		move.l	d5,a1
+	BUG	"SetPropertyList    = %lx,%lx",a0,a1
 		CALLLIB _LVOSetPropertyList (ctx,ctxl)
 		move.l	a4,a0
 		move.l	d4,a1
+	BUG	"SetPropertyList    = %lx,%lx",a0,a1
 		CALLLIB _LVOSetPropertyList (sctx,sctxl)
 
 .failed
+	BUG	"Failure!"
 		moveq.l	#-1,d0
 		move.l	d0,4(sp)		; set return values
 		move.l	d0,8(sp)
 		rts
 
 .success
+	BUG	"Success!"
 
 .cleanup
 		move.l	a4,a0
 		move.l	d4,a1
+;	BUG	"ReleaseMapping     = %lx,%lx",a0,a1
 		CALLLIB	_LVOReleaseMapping (sctx,sctxl)
 
 .release
 		move.l	a5,a0
 		move.l	d5,a1
+;	BUG	"ReleaseMapping     = %lx,%lx",a0,a1
 		CALLLIB	_LVOReleaseMapping (ctx,ctxl)
 
 .unlock
 
 	; Unlock contexts
 		movea.l	a4,a0
+;	BUG	"UnlockMMUContext   = %lx",a0
 		CALLLIB	_LVOUnlockMMUContext (sctx)
 		movea.l	a5,a0
+;	BUG	"UnlockMMUContext   = %lx",a0
 		CALLLIB	_LVOUnlockMMUContext (ctx)
+;	BUG	"UnlockContextList"
 		CALLLIB	_LVOUnlockContextList
 
 .nommu
 
 		move.l	a6,a1
 		move.l	4.w,a6
+;	BUG	"CloseLibrary       = %lx",a1
 		CALLLIB	_LVOCloseLibrary
 
 .exit:
 		movem.l	(sp)+,d0/d1
 		movem.l	(sp)+,d2-d7/a2-a5
+;	BUG "DONE"
 		rts
 
 .mmuName	dc.b	"mmu.library",0
