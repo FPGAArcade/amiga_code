@@ -5,6 +5,8 @@ BIN_DIR		:= $(CACHE_DIR)/bin
 CONFIG_DIR	:= $(CACHE_DIR)/config
 TARGET_DIR	:= $(CACHE_DIR)/targets
 
+VBCC_REPO	:= $(CACHE_DIR)/vbcc_vasm_vlink
+
 VASM		:= $(CACHE_DIR)/bin/vasmm68k_mot
 VLINK		:= $(CACHE_DIR)/bin/vlink
 
@@ -43,14 +45,17 @@ $(CACHE_DIR): | $(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR)
 $(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR):
 	mkdir -p $(BIN_DIR) $(CONFIG_DIR) $(TARGET_DIR)
 
+$(VBCC_REPO): | $(CACHE_DIR)
+	rm -rf $(VBCC_REPO)
+	git clone --depth 1 https://github.com/erique/vbcc_vasm_vlink.git $(VBCC_REPO)
+
 $(VC): $(VC).done
-$(VC).done: | $(CACHE_DIR)
-	cd $(CACHE_DIR) && rm -rf vbcc vbcc*.tar.gz
-	cd $(CACHE_DIR) && wget http://phoenix.owl.de/tags/vbcc0_9g.tar.gz
-	cd $(CACHE_DIR) && tar xzf vbcc0_9g.tar.gz
+$(VC).done: | $(CACHE_DIR) $(VBCC_REPO)
+	cd $(CACHE_DIR) && rm -rf vbcc
+	cd $(CACHE_DIR) && tar xzf $(VBCC_REPO)/vbcc.tar.gz
 	cd $(CACHE_DIR) && patch -p 0 < ../vbcc.patch
 	cd $(CACHE_DIR) && cd vbcc && mkdir bin && make TARGET=m68k -j 4 && cp bin/vc ../bin && cp bin/vbccm68k ../bin
-	cd $(CACHE_DIR) && rm -rf vbcc vbcc*.tar.gz
+	cd $(CACHE_DIR) && rm -rf vbcc
 	touch $@
 
 $(VC_CFG): $(REPO_ROOT)vc.cfg | $(CACHE_DIR)
@@ -59,30 +64,27 @@ $(VC_CFG): $(REPO_ROOT)vc.cfg | $(CACHE_DIR)
 	cp $(CONFIG_DIR)/vc.config $@
 
 $(VC_M68K): $(VC_M68K).done
-$(VC_M68K).done : | $(CACHE_DIR)
+$(VC_M68K).done : | $(CACHE_DIR) $(VBCC_REPO)
 	cd $(CACHE_DIR) && rm -rf vbcc_target_m68k-amigaos*
-	cd $(CACHE_DIR) && wget http://phoenix.owl.de/vbcc/2019-10-04/vbcc_target_m68k-amigaos.lha
-	cd $(CACHE_DIR) && 7z x vbcc_target_m68k-amigaos.lha
+	cd $(CACHE_DIR) && 7z x $(VBCC_REPO)/vbcc_target_m68k-amigaos.lha
 	cd $(CACHE_DIR) && cd vbcc_target_m68k-amigaos && mv targets/m68k-amigaos ../targets/m68k-amigaos
 	cd $(CACHE_DIR) && rm -rf vbcc_target_m68k-amigaos*
 	touch $@
 
 $(VLINK): $(VLINK).done
-$(VLINK).done: | $(CACHE_DIR)
-	cd $(CACHE_DIR) && rm -rf vlink vlink.tar.gz
-	cd $(CACHE_DIR) && wget http://sun.hasenbraten.de/vlink/release/vlink.tar.gz
-	cd $(CACHE_DIR) && tar xzf vlink.tar.gz
+$(VLINK).done: | $(CACHE_DIR) $(VBCC_REPO)
+	cd $(CACHE_DIR) && rm -rf vlink
+	cd $(CACHE_DIR) && tar xzf $(VBCC_REPO)/vlink.tar.gz
 	cd $(CACHE_DIR) && cd vlink && make -j 4 && cp vlink ../bin
-	cd $(CACHE_DIR) && rm -rf vlink vlink.tar.gz
+	cd $(CACHE_DIR) && rm -rf vlink
 	touch $@
 
 $(VASM): $(VASM).done
-$(VASM).done: | $(CACHE_DIR)
-	cd $(CACHE_DIR) && rm -rf vasm vasm.tar.gz
-	cd $(CACHE_DIR) && wget http://sun.hasenbraten.de/vasm/release/vasm.tar.gz
-	cd $(CACHE_DIR) && tar xzf vasm.tar.gz
+$(VASM).done: | $(CACHE_DIR) $(VBCC_REPO)
+	cd $(CACHE_DIR) && rm -rf vasm
+	cd $(CACHE_DIR) && tar xzf $(VBCC_REPO)/vasm.tar.gz
 	cd $(CACHE_DIR) && cd vasm && make CPU=m68k SYNTAX=mot -j 4 && cp vasmm68k_mot ../bin
-	cd $(CACHE_DIR) && rm -rf vasm vasm.tar.gz
+	cd $(CACHE_DIR) && rm -rf vasm
 	touch $@
 
 $(NDK): | $(CACHE_DIR)
