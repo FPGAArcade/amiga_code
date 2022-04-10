@@ -5,7 +5,7 @@ BIN_DIR		:= $(CACHE_DIR)/bin
 CONFIG_DIR	:= $(CACHE_DIR)/config
 TARGET_DIR	:= $(CACHE_DIR)/targets
 
-VBCC_REPO	:= $(CACHE_DIR)/vbcc_vasm_vlink
+VBCC_REPO	:= $(abspath $(CACHE_DIR)/vbcc_vasm_vlink)
 
 VASM		:= $(CACHE_DIR)/bin/vasmm68k_mot
 VLINK		:= $(CACHE_DIR)/bin/vlink
