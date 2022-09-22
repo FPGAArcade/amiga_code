@@ -29,12 +29,12 @@ MAX_ROM_TAGS	= 32
 	moveq.l	#-1,d0
 	rts
 
-VERSION	= 1
+VERSION	= 2
 REVISION= 0
 
-	dc.b	0,'$VER: Poseidon ROM Loader 1.0 (4.2.2020) Replay USB',0
+	dc.b	0,'$VER: Poseidon ROM Loader 2.0 (19.9.2022) Replay USB',0
 	even
-VERSTRING	dc.b	'Poseidon ROM Loader 1.0 (4.2.2020) Replay USB',13,10,0
+VERSTRING	dc.b	'Poseidon ROM Loader 2.0 (19.9.2022) Replay USB',13,10,0
 	even
 
 	cnop	0,4
@@ -142,23 +142,15 @@ S:
 
 	kprintf	<" @ %08lx",10>,a1
 
+	kprintf	<"    Old KickMemPtr(a6) = %08lx",10>,KickMemPtr(a6)
+
 	move.l	KickMemPtr(a6),d0
-	beq.b	.nokickmem
-	move.l	d0,a0
-
-	ADDHEAD	(a0,a1)
-
-	bra.b	.createmem
-
-.nokickmem
 	move.l	a1,KickMemPtr(a6)
 
-
-.createmem
-	kprintf	<"    KickMemPtr(a6) = %08lx",10>,KickMemPtr(a6)
+	kprintf	<"    New KickMemPtr(a6) = %08lx",10>,KickMemPtr(a6)
 
 	lea	tagname(pc),a0
-	clr.l	(a1)+					; LN_SUCC
+	move.l	d0,(a1)+				; LN_SUCC
 	clr.l	(a1)+					; LN_PRED
 	clr.w	(a1)+					; LN_TYPE + LN_PRI
 	move.l	a0,(a1)+				; LN_NAME
