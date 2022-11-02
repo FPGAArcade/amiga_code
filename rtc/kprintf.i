@@ -15,8 +15,8 @@
 
 kprintf	MACRO
 	IFD	ENABLE_KPRINTF
-	cmp.l	#$baadc0de,0.l		; kludge to dynamically enable/disable printf's
-	bne.b	.skip\@
+;	cmp.l	#$baadc0de,0.l		; kludge to dynamically enable/disable printf's
+;	bne.b	.skip\@
 
 	ifnc	"","\9"
 		move.l  \9,-(sp)
