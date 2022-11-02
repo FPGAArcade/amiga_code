@@ -17,15 +17,17 @@ MAX_ROM_TAGS	= 32
 
 ;ENABLE_KPRINTF
 
+	NOLIST
 	include	exec/exec.i
 	include	exec/nodes.i
 	include	exec/resident.i
 	include	exec/libraries.i
 	include lvo/exec_lib.i
 	include kprintf.i
+	LIST
 
 
-	jmp	S
+	jmp	(S)(pc)
 	moveq.l	#-1,d0
 	rts
 

@@ -106,7 +106,6 @@ VERSTAG	MACRO
 	include	lvo/exec_lib.i
 	include	lvo/expansion_lib.i
 	include	lvo/timer_lib.i
-	LIST
 
 *************************************************************************
 
@@ -189,6 +188,7 @@ FALSE	EQU	0
 
 Start:
 	IFD	STANDALONE_TESTCODE
+	LIST
 		move.l	4.w,a6
 
 		lea	.replayBase(pc),a0
@@ -743,6 +743,7 @@ audio:
 ;		incbin	"084_classicbrk-24.aif"
 ;		incbin	"Casio-MT-45-16-Beat.wav"
 	ELSE
+	LIST
 		moveq	#-1,d0
 		rts
 	ENDC	; STANDALONE_TESTCODE
@@ -2454,7 +2455,7 @@ ga_Copyright:
 	lea		.copyright(pc),a0
 	move.l	a0,d0
 	rts
-.copyright	dc.b	"© 2022 All rights reserved",0
+.copyright	dc.b	"ï¿½ 2022 All rights reserved",0
 	even
 
 ga_Version:
