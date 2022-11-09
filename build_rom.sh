@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-romtool -v build -o replay.rom -t ext -s 128 -e f00000 -a f00010 -r 01.10 -f bootrom/bootrom.bin addmem/AddReplayMem poseidon/PoseidonLoader rtc/battclock.resource usb/usb_eth.autoconfig usb/replayusb.device eth/replayeth.device sdcard/replaysd.device rtg/Replay.card xaudio/Devs/AHI/replay.audio
+romtool -v build -o replay.rom -t ext -s 128 -e f00000 -a f00010 -r 01.10 -f bootrom/bootrom.bin addmem/AddReplayMem poseidon/PoseidonLoader rtc/battclock.resource usb/usb_eth.autoconfig usb/replayusb.device eth/replayeth.device sdcard/replaysd.device rtg/Replay.card xaudio/Devs/AHI/replay.audio cpufreq/cpufreq.exe
 printf "000001: 11" | xxd -r - replay.rom
 romtool copy -c replay.rom replay.rom
 romtool info replay.rom
