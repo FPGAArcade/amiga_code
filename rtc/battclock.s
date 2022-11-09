@@ -625,6 +625,8 @@ initStruct:
 	DC.L		0
 
 InitResource:
+	kprintf	"INIT: %s",#VERSTRING
+
 	movem.l	a2/a3/a6,-(sp)
 	move.l	#0,a2		; for no resource case
 
