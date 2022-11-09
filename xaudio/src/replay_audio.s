@@ -2455,7 +2455,7 @@ ga_Copyright:
 	lea		.copyright(pc),a0
 	move.l	a0,d0
 	rts
-.copyright	dc.b	"� 2022 All rights reserved",0
+.copyright	dc.b	"© 2022 All rights reserved",0
 	even
 
 ga_Version:
