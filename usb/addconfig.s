@@ -34,7 +34,7 @@
 VERSION	= 1
 REVISION= 0
 
-VERSTRING	dc.b	'usb_eth.autoconfig 1.1 (15.3.2022) ZorroIII config for Replay USB/Ethernet Card',13,10,0
+VERSTRING	dc.b	'usb_eth.autoconfig 1.2 (7.11.2022) ZorroIII config for Replay USB/Ethernet Card',13,10,0
 	even
 	
 romtag:	dc.w	RTC_MATCHWORD
@@ -64,7 +64,7 @@ AddBoardConfig:
 .VENDOR		= 5060	; Replay
 .PRODUCT	= 16	; usb
 .SERIAL		= $12345678
-.BOARDSIZE	= $7	; %111 = 4MB
+.BOARDSIZE	= $0	; %000 = 8MB
 		movem.l	d1/a0/a1,-(sp)
 		moveq	#0,d0
 		movea.l	4.w,a6
@@ -99,7 +99,7 @@ AddBoardConfig:
 
 		movea.l	d0,a0
 		move.l	#$40000000,cd_BoardAddr(a0)
-		move.l	#$00400000,cd_BoardSize(a0)
+		move.l	#$00800000,cd_BoardSize(a0)
 		lea	cd_Rom(a0),a1
 		move.b	#ERT_ZORROIII+.BOARDSIZE,er_Type(a1)
 		move.b	#.PRODUCT,er_Product(a1)

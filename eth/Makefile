@@ -13,6 +13,9 @@ $(TARGET): $(INCLUDES)
 $(TARGET): $(SOURCE)
 	$(VASM) $< -o $@ -L $(LISTFILE) $(VASM_FLAGS) -I $(INC_ASM) -I $(SANA2)/include
 
+reseteth: reseteth.s
+	$(VASM) $< -o $@ -L $(LISTFILE) $(VASM_FLAGS) -I $(INC_ASM) -I $(SANA2)/include
+
 clean:
 	rm -rf $(TARGET) $(LISTFILE)
 

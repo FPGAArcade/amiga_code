@@ -52,6 +52,8 @@ kprintf	MACRO
 	bra.b	_kprintf_end
 _kprintf:	movem.l	d0-d1/a0-a3/a6,-(sp)	
 		move.l	$4.w,a6
+;		jsr	-504(a6)		; _LVORawIOInit (execPrivate7)
+		move.w	#(3546895/115200),$dff032
 		move.l	28(sp),a0
 		lea	32(sp),a1
 		lea	.putch(pc),a2
@@ -68,10 +70,9 @@ _kprintf:	movem.l	d0-d1/a0-a3/a6,-(sp)
 		movem.l	(sp)+,d0-d1/a0-a3/a6
 		rts
 
-.putch:		move.l	a6,-(sp)
-		move.l	a3,a6
+.putch:		exg.l	a3,a6
 		jsr	-516(a6)		; _LVORawPutChar (execPrivate9)
-		move.l	(sp)+,a6
+		exg.l	a6,a3
 		rts
 _kprintf_end:
 	ENDC
