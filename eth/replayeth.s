@@ -83,14 +83,14 @@ VFULL	MACRO
 	ENDM
 
 VERSION		EQU	1
-REVISION	EQU	1
+REVISION	EQU	2
 
 VSTR	MACRO
-		dc.b	'1.1'
+		dc.b	'1.2'
 	ENDM
 
 VDATE	MACRO
-		dc.b	'06.04.2020'
+		dc.b	'13.11.2022'
 	ENDM
 
 ; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -177,7 +177,7 @@ MACH_INTREGS	= $00200000
 ;MACH_ETHREGS	= $00300000
 
 ETH_TX_START	= $1000
-ETH_RX_START	= $3000
+ETH_RX_START	= $2000
 
 ETHERPKT_SIZE = 1500
 ETHER_ADDR_SIZE = 6
@@ -2306,70 +2306,86 @@ ReceiveHandler
 		moveq.l	#0,d7
 		move.b	(ESTATL,a0),d7		; packets available
 		beq	.nopackets
-;		kprintf	"packets to process : %lx",d7
+		kprintf	"packets to process : %lx",d7
 
 		subq.l	#1,d7
 
 		moveq.l	#0,d0
+		moveq.l	#0,d1
 		move.w	g_NextPacketPointer(a1),d0
 		
 .process	move.l	g_RxBuffer(a1),a3
-;		kprintf	"ThisPacketPointer : %lx",d0
+		kprintf	"ThisPacketPointer : %lx",d0
 
 		lea	(a0,d0.l*2),a2		; packet
 
-		move.w	d0,(ERXRDPT,a0)
-		move.w	(a2),d0
+		move.w	(a2),d1
 
-;		kprintf	"NextPacketPointer : %lx",d0
+		kprintf	"NextPacketPointer : %lx",d1
 
-		lea	(ERXDATA+1,a0),a2
-		move.b	(a2),d1
-		move.b	(a2),d1
-
-		moveq.l	#0,d1
-		moveq.l	#0,d2
-		moveq.l	#0,d3
-		moveq.l	#0,d4
+	; if ThisPacketPointer < NextPacketPointer we know we're not wrapping the buffer
 		moveq.l	#0,d5
 		moveq.l	#0,d6
 
-		move.b	(a2),d6
-		move.b	(a2),d5
-		move.b	(a2),d4
-		move.b	(a2),d3
-		move.b	(a2),d2
-		move.b	(a2),d1
+		move.w	d1,d5
+		sub.w	d0,d5
+		bpl	.notwrapped
 
-;		kprintf	"RSV (48 bits) = %02lx-%02lx-%02lx-%02lx-%02lx-%02lx",d1,d2,d3,d4,d5,d6
+		kprintf "ringbuffer wrapped"
+		move.w	#$6000,d5
+		sub.w	d0,d5			; first chunk
 
-	; $TODO if multicast - check against list of valid addresses, and discard if possible
+		kprintf "first chunk = %ld bytes",d5
 
-		lsl.w	#8,d5
-		or.w	d5,d6
+		move.w	d1,d6
+		sub.w	#ETH_RX_START,d6	; second chunk
 
-;		sub.w	#4,d6	; remove trailing CRC
-;		kprintf	"Ether packet length w/o CRC = %ld bytes",d6
+		kprintf "second chunk = %ld bytes",d6
+
+.notwrapped	sub.w	#2+6,d5
+		bpl	.rsv_fits
+
+		neg	d5
+		kprintf "RSV did not fit (%ld missing)",d5
+
+		sub	d5,d6
+
+		lea	(ETH_RX_START*2,a0,d5.w*2),a2
+		move.w	d6,d5
+		moveq.l	#0,d6
+		bra.b	.rsv_skipped
+
+.rsv_fits
+		kprintf "skipping RSV; 8*2 bytes"
+		add.w	#8*2,a2
+
+.rsv_skipped	move.w	d1,d0
+
+.start_copy
+		kprintf	"about to copy %ld bytes from %lx",d5,a2
+
+		addq.w	#1,d5
+		lsr.w	d5
+		bra.b	.start_loop
+
+; this loop is 18c..
+
+.copy_word	move.w	(a2)+,d1	; 15c
+		ror.w	#8,d1		; 1c
+		move.w	d1,(a3)+	; 1c (PAIRED)
+		addq.w	#2,a2		;     ^^
+
+.start_loop	dbf	d5,.copy_word	; 1c
 
 		move.w	d6,d5
-		lsr.w	#4,d6
-;		kprintf	"loop cnt = %ld bytes",d6
+		beq	.done
 
-		and.w	#16-1,d5
-;		kprintf	"left over = %ld copys",d5
-		lsl.w	d5
-;		kprintf	"jump offset = %ld copys",d5
-		neg.w	d5
+		moveq.l	#0,d6
+		kprintf	"got another %ld bytes to copy..",d5
+		lea	(ETH_RX_START*2,a0),a2
+		bra	.start_copy
 
-;		kprintf "RecvBuffer = %lx",a3
-		jmp	.start(pc,d5.w)
-
-.copy
-	rept 16
-		move.b	(a2),(a3)+
-	endr
-.start		dbf	d6,.copy
-
+.done
 		move.w	#ECON1F_PKTDEC,(ECON1SET,a0)
 ;		move.w	d0,(ERXTAIL,a0)
 
@@ -2425,22 +2441,22 @@ ReceiveHandler
 .print16	kprintf	"    %08lx %08lx %08lx %08lx",0(a2),4(a2),8(a2),12(a2)
 		add.w	#16,a2
 		sub.w	#16,d2
-		bra	.dump
+		bra	.dumpstart
 
 .print12	kprintf	"    %08lx %08lx %08lx",0(a2),4(a2),8(a2)
 		add.w	#12,a2
 		sub.w	#12,d2
-		bra	.dump
+		bra	.dumpstart
 
 .print8		kprintf	"    %08lx %08lx",0(a2),4(a2)
 		add.w	#8,a2
 		sub.w	#8,d2
-		bra	.dump
+		bra	.dumpstart
 
 .print4		kprintf	"    %08lx",0(a2)
 		add.w	#4,a2
 		sub.w	#4,d2
-		bra	.dump
+		bra	.dumpstart
 
 		rts
 
